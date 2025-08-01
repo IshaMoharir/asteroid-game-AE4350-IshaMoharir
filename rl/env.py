@@ -8,6 +8,14 @@ from game.bullet import Bullet
 from game.config import *
 
 class AsteroidsEnv(gym.Env):
+    """Custom Gym environment for the Asteroids game.
+    This environment simulates the Asteroids game where an agent controls a ship
+    to avoid asteroids, shoot them, and maximize its score.
+    The state space includes the ship's position, velocity, and nearby asteroids.
+    The action space includes thrusting in different directions and shooting.
+    The environment can be rendered using Pygame for visualization.
+    """
+    # ---------- Environment metadata ----------
     def __init__(self, render_mode=False):
         self.render_mode = render_mode
         if render_mode:
@@ -17,6 +25,7 @@ class AsteroidsEnv(gym.Env):
             pygame.display.set_caption("Asteroids RL Agent")
         self.reset()
 
+    # ---------- Environment methods ----------
     def reset(self):
         self.ship = Ship(WIDTH // 2, HEIGHT // 2)
         self.asteroids = [Asteroid(size=random.choice(["large", "medium", "small"])) for _ in range(5)]
@@ -30,6 +39,7 @@ class AsteroidsEnv(gym.Env):
         self.ship_deaths = 0
         return self._get_state()
 
+    # ---------- Action space ----------
     def step(self, action):
         if self.done:
             return self._get_state(), 0, True, {}
@@ -60,7 +70,6 @@ class AsteroidsEnv(gym.Env):
                 self.bullets_fired += 1
 
 
-
         # # Shooting
         # if shoot:
         #     reward -= 0.01  # small cost to discourage spam
@@ -69,12 +78,10 @@ class AsteroidsEnv(gym.Env):
 
         # Movement encouragement vs idling
         if self.ship.vel.length() < 0.05:
-            reward -= 0.05  # Was idle
+            reward -= 0.1  # Was idle
             self.idle_steps += 1
         else:
-            reward += 0.01  # Small reward for being active
-
-
+            reward += 0.03  # Small reward for being active
 
         #
         # # Ship movement
@@ -150,6 +157,7 @@ class AsteroidsEnv(gym.Env):
 
         return np.array(state, dtype=np.float32)
 
+    # # ---------- Rendering ----------
     def _render(self):
         self.clock.tick(FPS)
         self.screen.fill((0, 0, 0))

@@ -13,7 +13,7 @@ moving_avg_window = 10
 best_avg_reward = float('-inf')
 all_rewards = []
 
-
+# --- Metrics ---
 metric_sums = {
     "bullets_fired": 0,
     "hits_landed": 0,
@@ -48,6 +48,7 @@ for ep in range(episodes):
     ep_start = time.time()
     action_counts = [0] * action_dim
 
+    # Reset metric sums for this episode
     while not done and steps < MAX_STEPS:
         action = agent.act(state)
         action_counts[action] += 1
@@ -104,6 +105,7 @@ torch.save(agent.model.state_dict(), "dqn_asteroids.pth")
 plt.figure(figsize=(10, 5))
 plt.plot(all_rewards, label="Total reward per episode")
 
+# Plot moving average if enough data
 if len(all_rewards) >= moving_avg_window:
     avg = np.convolve(all_rewards, np.ones(moving_avg_window)/moving_avg_window, mode='valid')
     plt.plot(avg, label=f"{moving_avg_window}-episode moving avg", color='orange')
