@@ -9,7 +9,8 @@ import numpy as np
 episodes = 300
 MAX_STEPS = 300
 print_interval = 10
-best_reward = float('-inf')
+moving_avg_window = 10
+best_avg_reward = float('-inf')
 all_rewards = []
 
 # --- Setup ---
@@ -22,9 +23,9 @@ agent = DQNAgent(state_dim, action_dim)
 try:
     agent.model.load_state_dict(torch.load("dqn_asteroids.pth"))
     agent.update_target()
-    print("✅ Loaded previous model.")
+    print(" Loaded previous model.")
 except FileNotFoundError:
-    print("🆕 No previous model found. Starting fresh.")
+    print(" No previous model found. Starting fresh.")
 
 # --- Timer ---
 episode_durations = []
@@ -53,10 +54,13 @@ for ep in range(episodes):
     agent.epsilon = max(agent.epsilon * agent.epsilon_decay, agent.epsilon_min)
     all_rewards.append(total_reward)
 
-    # Save best model
-    if total_reward > best_reward:
-        best_reward = total_reward
-        torch.save(agent.model.state_dict(), "best_model.pth")
+    # Save best model by moving average
+    if len(all_rewards) >= moving_avg_window:
+        moving_avg = sum(all_rewards[-moving_avg_window:]) / moving_avg_window
+        if moving_avg > best_avg_reward:
+            best_avg_reward = moving_avg
+            torch.save(agent.model.state_dict(), "best_model.pth")
+            print(f"💾 Saved new best model (avg reward = {moving_avg:.2f})")
 
     # Episode timing
     ep_time = time.time() - ep_start
@@ -70,7 +74,8 @@ for ep in range(episodes):
     if (ep + 1) % print_interval == 0 or ep == 0:
         print(f"Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
         print(f"Action counts: {action_counts}")
-        print(f"⏱️ Estimated total time remaining: {remaining:.1f}s (~{remaining/60:.1f} min)")
+        print(f"⏱️ ETA: {remaining:.1f}s (~{remaining/60:.1f} min)")
+        print(f"---------------------------------------------------------")
 
 # --- Save final model ---
 torch.save(agent.model.state_dict(), "dqn_asteroids.pth")
@@ -79,9 +84,9 @@ torch.save(agent.model.state_dict(), "dqn_asteroids.pth")
 plt.figure(figsize=(10, 5))
 plt.plot(all_rewards, label="Total reward per episode")
 
-if len(all_rewards) >= 10:
-    avg = np.convolve(all_rewards, np.ones(10)/10, mode='valid')
-    plt.plot(avg, label="10-episode moving avg", color='orange')
+if len(all_rewards) >= moving_avg_window:
+    avg = np.convolve(all_rewards, np.ones(moving_avg_window)/moving_avg_window, mode='valid')
+    plt.plot(avg, label=f"{moving_avg_window}-episode moving avg", color='orange')
 
 plt.xlabel("Episode")
 plt.ylabel("Total Reward")
@@ -90,7 +95,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig("training_curve.png")
-plt.show()
+# plt.show()
 
 # --- Done ---
 total_time = time.time() - global_start

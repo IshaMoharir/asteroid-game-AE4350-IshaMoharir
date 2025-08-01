@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import numpy as np
 import random
 import pygame
@@ -46,16 +46,19 @@ class AsteroidsEnv(gym.Env):
 
         self.ship.apply_thrust(thrust)
 
-        # Optional shooting penalty
         reward = 0
+
+        # Shooting
         if shoot:
-            reward -= 0.005
+            reward -= 0.01  # small cost to discourage spam
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
 
-        self.ship.update()
-        for a in self.asteroids:
-            a.update()
+        # Ship movement
+        if self.ship.vel.length() > 0.01:
+            reward += 0.01
+        else:
+            reward -= 0.01
 
         # Bullet-asteroid collision
         for b in self.bullets[:]:
@@ -69,26 +72,30 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 1.0  # hitting an asteroid
+                    reward += 5.0  # ⭐ main reward!
                     break
 
-        # Penalise passivity
-        if self.ship.vel.length() < 0.01:
-            reward -= 0.01
-
         # Ship-asteroid collision
-        ship_rect = pygame.Rect(self.ship.pos.x - SHIP_RADIUS, self.ship.pos.y - SHIP_RADIUS, SHIP_RADIUS*2, SHIP_RADIUS*2)
+        ship_rect = pygame.Rect(self.ship.pos.x - SHIP_RADIUS, self.ship.pos.y - SHIP_RADIUS, SHIP_RADIUS * 2,
+                                SHIP_RADIUS * 2)
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
                 reward = -1.0
                 self.done = True
                 break
 
-        reward += 0.01  # survival reward
+        # Small survival bonus
+        reward += 0.01
+
+        # Update ship and asteroid positions
+        self.ship.update()
+        for a in self.asteroids:
+            a.update()
+
         self.score += reward
 
         if self.render_mode:
-            self._render(shoot)
+            self._render()
 
         return self._get_state(), reward, self.done, {}
 
@@ -112,7 +119,7 @@ class AsteroidsEnv(gym.Env):
 
         return np.array(state, dtype=np.float32)
 
-    def _render(self, shoot=False):
+    def _render(self):
         self.clock.tick(FPS)
         self.screen.fill((0, 0, 0))
         self.ship.draw(self.screen)
@@ -126,8 +133,6 @@ class AsteroidsEnv(gym.Env):
         score_text = font.render(f"Score: {int(self.score)}", True, (255, 255, 255))
         self.screen.blit(score_text, (10, 10))
 
-        # Visual cue when shooting
-        if shoot:
-            pygame.draw.circle(self.screen, (255, 0, 0), (int(self.ship.pos.x), int(self.ship.pos.y)), 10, 2)
 
         pygame.display.flip()
+

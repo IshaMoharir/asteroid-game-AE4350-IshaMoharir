@@ -27,7 +27,7 @@ for ep in range(episodes):
     done = False
     total_reward = 0
 
-    print(f"▶️ Episode {ep + 1}/{episodes} running...")
+    print(f"️ Episode {ep + 1}/{episodes} running...")
 
     while not done:
         for event in pygame.event.get():
@@ -45,11 +45,11 @@ for ep in range(episodes):
 
         time.sleep(0.01)
 
-    print(f"✅ Episode {ep + 1} complete | Reward = {total_reward:.2f}")
+    print(f" Episode {ep + 1} complete | Reward = {total_reward:.2f}")
     time.sleep(0.5)
 
 # Done
 total_time = time.time() - start_time
-print(f"\n🏁 All {episodes} episodes completed in {total_time:.1f} seconds (~{total_time/60:.1f} min)")
+print(f"\n All {episodes} episodes completed in {total_time:.1f} seconds (~{total_time/60:.1f} min)")
 
 pygame.quit()
