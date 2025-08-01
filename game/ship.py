@@ -1,30 +1,38 @@
 import pygame
-import math
 from .config import *
 
 class Ship:
     def __init__(self, x, y):
         self.pos = pygame.math.Vector2(x, y)
         self.vel = pygame.math.Vector2(0, 0)
-        self.angle = 0
+        self.acc = pygame.math.Vector2(0, 0)
+        self.direction = pygame.math.Vector2(0, -1)  # Last direction of movement
 
-    def rotate(self, direction):
-        self.angle += ROTATION_SPEED * direction
-
-    def thrust(self):
-        rad = math.radians(self.angle)
-        force = pygame.math.Vector2(math.cos(rad), -math.sin(rad)) * SHIP_THRUST
-        self.vel += force
+    def apply_thrust(self, thrust_vector):
+        if thrust_vector.length() > 0:
+            thrust_vector = thrust_vector.normalize()
+            self.direction = thrust_vector
+            self.acc += thrust_vector * SHIP_THRUST
 
     def update(self):
+        self.vel += self.acc
         self.pos += self.vel
-        self.vel *= 0.99  # friction / damping
-        self.pos.x %= WIDTH
-        self.pos.y %= HEIGHT
+        self.acc *= 0  # reset acceleration each frame
+
+        # Apply friction
+        self.vel *= 0.98
+
+        # Screen wrap
+        self.pos.x = max(SHIP_RADIUS, min(WIDTH - SHIP_RADIUS, self.pos.x))
+        self.pos.y = max(SHIP_RADIUS, min(HEIGHT - SHIP_RADIUS, self.pos.y))
 
     def draw(self, screen):
-        rad = math.radians(self.angle)
-        tip = self.pos + pygame.math.Vector2(math.cos(rad), -math.sin(rad)) * SHIP_RADIUS
-        left = self.pos + pygame.math.Vector2(math.cos(rad + 2.5), -math.sin(rad + 2.5)) * SHIP_RADIUS
-        right = self.pos + pygame.math.Vector2(math.cos(rad - 2.5), -math.sin(rad - 2.5)) * SHIP_RADIUS
-        pygame.draw.polygon(screen, (255, 255, 255), [tip, left, right])
+        pygame.draw.polygon(screen, (255, 255, 255), self.get_triangle())
+
+    def get_triangle(self):
+        # Draw triangle pointing in direction of self.direction
+        perp = self.direction.rotate(90)
+        tip = self.pos + self.direction * SHIP_RADIUS
+        left = self.pos + perp * (SHIP_RADIUS / 2)
+        right = self.pos - perp * (SHIP_RADIUS / 2)
+        return [tip, left, right]
