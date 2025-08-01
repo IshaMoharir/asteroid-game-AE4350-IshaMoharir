@@ -24,6 +24,10 @@ class AsteroidsEnv(gym.Env):
         self.score = 0
         self.done = False
         self.frame_count = 0
+        self.bullets_fired = 0
+        self.hits_landed = 0
+        self.idle_steps = 0
+        self.ship_deaths = 0
         return self._get_state()
 
     def step(self, action):
@@ -53,10 +57,9 @@ class AsteroidsEnv(gym.Env):
             reward -= 0.01  # shooting penalty
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
-                # New: bonus if asteroids are near
-                close_asteroids = [a for a in self.asteroids if self.ship.pos.distance_to(a.pos) < 100]
-                if close_asteroids:
-                    reward += 0.02
+                self.bullets_fired += 1
+
+
 
         # # Shooting
         # if shoot:
@@ -66,9 +69,13 @@ class AsteroidsEnv(gym.Env):
 
         # Movement encouragement vs idling
         if self.ship.vel.length() < 0.05:
-            reward -= 0.01  # Was idle
+            reward -= 0.05  # Was idle
+            self.idle_steps += 1
         else:
             reward += 0.01  # Small reward for being active
+
+
+
         #
         # # Ship movement
         # if self.ship.vel.length() > 0.01:
@@ -88,7 +95,8 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 6.0  # main reward!
+                    reward += 10.0  # Increased reward for hit
+                    self.hits_landed += 1  # ✅ Log hit
                     break
 
         # Ship-asteroid collision
@@ -98,7 +106,9 @@ class AsteroidsEnv(gym.Env):
             if ship_rect.colliderect(a.get_rect()):
                 reward = -1.0
                 self.done = True
+                self.ship_deaths += 1
                 break
+
 
         # Small survival bonus
         reward += 0.002
@@ -113,7 +123,12 @@ class AsteroidsEnv(gym.Env):
         if self.render_mode:
             self._render()
 
-        return self._get_state(), reward, self.done, {}
+        return self._get_state(), reward, self.done, {
+            "bullets_fired": self.bullets_fired,
+            "hits_landed": self.hits_landed,
+            "idle_steps": self.idle_steps,
+            "ship_deaths": self.ship_deaths
+        }
 
     def _get_state(self):
         state = [

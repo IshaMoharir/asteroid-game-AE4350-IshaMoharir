@@ -7,11 +7,19 @@ import numpy as np
 
 # --- Settings ---
 episodes = 1000
-MAX_STEPS = 1000
+MAX_STEPS = 500
 print_interval = 10
 moving_avg_window = 10
 best_avg_reward = float('-inf')
 all_rewards = []
+
+
+metric_sums = {
+    "bullets_fired": 0,
+    "hits_landed": 0,
+    "idle_steps": 0,
+    "ship_deaths": 0
+}
 
 # --- Setup ---
 env = AsteroidsEnv(render_mode=False)
@@ -43,16 +51,21 @@ for ep in range(episodes):
     while not done and steps < MAX_STEPS:
         action = agent.act(state)
         action_counts[action] += 1
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, info = env.step(action)
         agent.store(state, action, reward, next_state, done)
         agent.train_step()
         state = next_state
         total_reward += reward
         steps += 1
 
+    # Update agent
     agent.update_target()
     agent.epsilon = max(agent.epsilon * agent.epsilon_decay, agent.epsilon_min)
     all_rewards.append(total_reward)
+
+    # Update metric sums
+    for key in metric_sums:
+        metric_sums[key] += info[key]
 
     # Save best model by moving average
     if len(all_rewards) >= moving_avg_window:
@@ -70,12 +83,19 @@ for ep in range(episodes):
     avg_ep_time = sum(episode_durations) / len(episode_durations)
     remaining = (episodes - (ep + 1)) * avg_ep_time
 
-    # Periodic print
+    # Periodic printing
     if (ep + 1) % print_interval == 0 or ep == 0:
-        print(f"Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
-        print(f"Action counts: {action_counts}")
-        print(f"⏱️ ETA: {remaining:.1f}s (~{remaining/60:.1f} min)")
-        print(f"---------------------------------------------------------")
+        avg_metrics = {k: v / print_interval for k, v in metric_sums.items()}
+        print(f"\n📊 Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
+        print(f"🔫 Bullets: {avg_metrics['bullets_fired']:.1f} | 🎯 Hits: {avg_metrics['hits_landed']:.1f} | "
+              f"🛑 Idle: {avg_metrics['idle_steps']:.1f} | 💥 Deaths: {avg_metrics['ship_deaths']:.1f}")
+        print(f"🎮 Action counts: {action_counts}")
+        print(f"⏱️ ETA: {remaining:.1f}s (~{remaining / 60:.1f} min)")
+        print("---------------------------------------------------------")
+
+        # Reset interval sums
+        for key in metric_sums:
+            metric_sums[key] = 0
 
 # --- Save final model ---
 torch.save(agent.model.state_dict(), "dqn_asteroids.pth")
