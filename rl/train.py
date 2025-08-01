@@ -6,8 +6,8 @@ import time
 import numpy as np
 
 # --- Settings ---
-episodes = 300
-MAX_STEPS = 300
+episodes = 1000
+MAX_STEPS = 1000
 print_interval = 10
 moving_avg_window = 10
 best_avg_reward = float('-inf')
@@ -95,7 +95,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig("training_curve.png")
-# plt.show()
+plt.show()
 
 # --- Done ---
 total_time = time.time() - global_start

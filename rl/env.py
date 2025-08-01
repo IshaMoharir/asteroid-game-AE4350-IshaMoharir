@@ -48,17 +48,33 @@ class AsteroidsEnv(gym.Env):
 
         reward = 0
 
-        # Shooting
+        # When shooting:
         if shoot:
-            reward -= 0.01  # small cost to discourage spam
+            reward -= 0.01  # shooting penalty
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
+                # New: bonus if asteroids are near
+                close_asteroids = [a for a in self.asteroids if self.ship.pos.distance_to(a.pos) < 100]
+                if close_asteroids:
+                    reward += 0.02
 
-        # Ship movement
-        if self.ship.vel.length() > 0.01:
-            reward += 0.01
+        # # Shooting
+        # if shoot:
+        #     reward -= 0.01  # small cost to discourage spam
+        #     if len(self.bullets) < 5:
+        #         self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
+
+        # Movement encouragement vs idling
+        if self.ship.vel.length() < 0.05:
+            reward -= 0.01  # Was idle
         else:
-            reward -= 0.01
+            reward += 0.01  # Small reward for being active
+        #
+        # # Ship movement
+        # if self.ship.vel.length() > 0.01:
+        #     reward += 0.01
+        # else:
+        #     reward -= 0.01
 
         # Bullet-asteroid collision
         for b in self.bullets[:]:
@@ -72,7 +88,7 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 5.0  # ⭐ main reward!
+                    reward += 6.0  # main reward!
                     break
 
         # Ship-asteroid collision
@@ -85,7 +101,7 @@ class AsteroidsEnv(gym.Env):
                 break
 
         # Small survival bonus
-        reward += 0.01
+        reward += 0.002
 
         # Update ship and asteroid positions
         self.ship.update()
