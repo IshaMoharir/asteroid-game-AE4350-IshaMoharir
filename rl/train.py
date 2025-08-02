@@ -100,16 +100,42 @@ def train_agent(run_id, episodes=500, max_steps=500):
     total_time = time.time() - global_start
     print(f"\n✅ Run {run_id} complete | Best avg reward = {best_avg_reward:.2f} | Time: {total_time/60:.1f} min")
 
-    return best_avg_reward, f"models/best_model_run{run_id}.pth"
+    return best_avg_reward, f"models/best_model_run{run_id}.pth", all_rewards
+
 
 
 if __name__ == "__main__":
     os.makedirs("models", exist_ok=True)
     results = []
+    all_rewards_all_runs = []
 
     for i in range(10):
-        avg_reward, model_path = train_agent(run_id=i)
+        avg_reward, model_path, rewards = train_agent(run_id=i)
         results.append((avg_reward, model_path))
+        all_rewards_all_runs.append(rewards)
 
-    best = max(results, key=lambda x: x[0])
-    print(f"\n🏆 Best model: {best[1]} | Avg reward = {best[0]:.2f}")
+    # Compute mean and std per episode index
+    rewards_array = np.array(all_rewards_all_runs)  # Shape: (10, episodes)
+    mean_per_ep = np.mean(rewards_array, axis=0)
+    std_per_ep = np.std(rewards_array, axis=0)
+
+    # Optional: save or plot
+    np.save("models/mean_rewards.npy", mean_per_ep)
+    np.save("models/std_rewards.npy", std_per_ep)
+
+    # Plot
+    plt.figure(figsize=(10, 5))
+    plt.plot(mean_per_ep, label="Mean reward per episode")
+    plt.fill_between(range(len(mean_per_ep)),
+                     mean_per_ep - std_per_ep,
+                     mean_per_ep + std_per_ep,
+                     color="orange", alpha=0.3, label="±1 std dev")
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.title("Average Reward Across 10 Runs")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("models/avg_std_across_runs.png")
+    plt.show()
+
