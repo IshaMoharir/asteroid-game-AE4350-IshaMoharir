@@ -4,24 +4,24 @@ import pygame
 from rl.dqn_agent import DQN
 from rl.env import AsteroidsEnv
 
-# Settings
-MODEL_PATH = "rl/best_model.pth"  # or "rl/dqn_asteroids.pth"
+# --- Load best model path from file ---
+with open("models/best_model_path.txt", "r") as f:
+    MODEL_PATH = f.read().strip()
+
 episodes = 5  # Number of episodes to watch
 
-# Load environment
+# --- Load environment ---
 env = AsteroidsEnv(render_mode=True)
 state_dim = len(env.reset())
 action_dim = 6
 
-# Load model
+# --- Load model ---
 model = DQN(state_dim, action_dim)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device("cpu")))
 model.eval()
 
-# Track total time
+# --- Run episodes ---
 start_time = time.time()
-
-# Run episodes
 for ep in range(episodes):
     state = env.reset()
     done = False
@@ -48,8 +48,7 @@ for ep in range(episodes):
     print(f" Episode {ep + 1} complete | Reward = {total_reward:.2f}")
     time.sleep(0.5)
 
-# Done
+# --- Done ---
 total_time = time.time() - start_time
 print(f"\n All {episodes} episodes completed in {total_time:.1f} seconds (~{total_time/60:.1f} min)")
-
 pygame.quit()

@@ -123,6 +123,12 @@ if __name__ == "__main__":
     np.save("models/mean_rewards.npy", mean_per_ep)
     np.save("models/std_rewards.npy", std_per_ep)
 
+    # Find the best model
+    best = max(results, key=lambda x: x[0])
+
+    with open("models/best_model_path.txt", "w") as f:
+        f.write(best[1])
+
     # Plot
     plt.figure(figsize=(10, 5))
     plt.plot(mean_per_ep, label="Mean reward per episode")
