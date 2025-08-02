@@ -6,7 +6,7 @@ import numpy as np
 from rl.env import AsteroidsEnv
 from rl.dqn_agent import DQNAgent
 
-def train_agent(run_id, episodes=1000, max_steps=500):
+def train_agent(run_id, episodes=500, max_steps=500):
     # Setup
     env = AsteroidsEnv(render_mode=False)
     state_dim = len(env.reset())

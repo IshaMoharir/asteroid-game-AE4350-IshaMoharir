@@ -102,15 +102,14 @@ class AsteroidsEnv(gym.Env):
         # Survival bonus
         reward += 0.002
 
-        # --- Penalise being near corners ---
-        corner_threshold = 0.15
+        # --- Penalise being near any edge of the screen ---
+        edge_margin = 0.1  # 10% of screen width/height
         norm_x = self.ship.pos.x / WIDTH
         norm_y = self.ship.pos.y / HEIGHT
-        if (norm_x < corner_threshold and norm_y < corner_threshold) or \
-           (norm_x < corner_threshold and norm_y > 1 - corner_threshold) or \
-           (norm_x > 1 - corner_threshold and norm_y < corner_threshold) or \
-           (norm_x > 1 - corner_threshold and norm_y > 1 - corner_threshold):
-            reward -= 0.2
+
+        if norm_x < edge_margin or norm_x > 1 - edge_margin or \
+                norm_y < edge_margin or norm_y > 1 - edge_margin:
+            reward -= 0.15
 
         # --- Penalise not shooting when asteroid is in front ---
         if not shoot:
