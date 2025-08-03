@@ -86,19 +86,19 @@ class AsteroidsEnv(gym.Env):
 
         # --- Shooting ---
         if shoot:
-            reward -= 0.01  # 🔧 Small penalty for firing
+            reward -= 0.005  # 🔧 Small penalty for firing
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
                 self.bullets_fired += 1
-                shooting_reward = 0.2  # 🔧 Reward for shooting
+                shooting_reward = 0.4  # 🔧 Reward for shooting
                 reward += shooting_reward
 
         # --- Idle or movement ---
         if self.ship.vel.length() < 0.05:
-            reward -= 0.1  # 🔧 Penalty for being idle
+            reward -= 0.03  # 🔧 Penalty for being idle
             self.idle_steps += 1
         else:
-            reward += 0.03  # 🔧 Reward for movement
+            reward += 0.06  # 🔧 Reward for movement
 
         # --- Bullet hits ---
         for b in self.bullets[:]:
@@ -111,7 +111,7 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 10.0  # 🔧 Big reward for destroying asteroid
+                    reward += 20.0  # 🔧 Big reward for destroying asteroid
                     self.hits_landed += 1
                     break
 
@@ -120,7 +120,7 @@ class AsteroidsEnv(gym.Env):
                                 SHIP_RADIUS * 2, SHIP_RADIUS * 2)
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
-                reward = -1.0  # 🔧 Death penalty
+                reward = -5.0  # 🔧 Death penalty
                 self.done = True
                 self.ship_deaths += 1
                 return reward, alignment_reward, shooting_reward
@@ -132,19 +132,19 @@ class AsteroidsEnv(gym.Env):
         near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
                     norm_y < edge_margin or norm_y > 1 - edge_margin
         if near_edge:
-            reward -= 0.15  # 🔧 Penalty for being near edge
+            reward -= 0.05  # 🔧 Penalty for being near edge
             self.edge_counter += 1
         else:
             self.edge_counter = 0
 
         if self.edge_counter > 150:
-            reward -= 0.5  # 🔧 Extra penalty if hugging edge too long
+            reward -= 0.2  # 🔧 Extra penalty if hugging edge too long
             self.done = True
             return reward, alignment_reward, shooting_reward
 
         # --- Center distance penalty ---
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
-        reward -= 0.6 * center_dist  # 🔧 Discourage staying away from center
+        reward -= 0.2 * center_dist  # 🔧 Discourage staying away from center
 
         # --- Missed shot penalty (if asteroid ahead) ---
         if not shoot:
@@ -153,7 +153,7 @@ class AsteroidsEnv(gym.Env):
                 to_asteroid = safe_normalize(asteroid.pos - self.ship.pos)
                 angle = ship_dir.angle_to(to_asteroid)
                 if abs(angle) < 15:
-                    reward -= 0.4  # 🔧 Penalty for not shooting when asteroid in front
+                    reward -= 0.1  # 🔧 Penalty for not shooting when asteroid in front
                     break
 
         # --- Alignment reward with closest asteroid ---
@@ -163,9 +163,9 @@ class AsteroidsEnv(gym.Env):
             ship_dir = safe_normalize(self.ship.direction)
             angle = ship_dir.angle_to(to_asteroid)
             if abs(angle) < 10:
-                alignment_reward = 0.3  # 🔧 High reward for aiming precisely
+                alignment_reward = 0.5  # 🔧 High reward for aiming precisely
             elif abs(angle) < 25:
-                alignment_reward = 0.2  # 🔧 Smaller reward
+                alignment_reward = 0.35  # 🔧 Smaller reward
             reward += alignment_reward
 
         return reward, alignment_reward, shooting_reward
