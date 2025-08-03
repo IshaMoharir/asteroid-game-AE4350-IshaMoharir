@@ -144,7 +144,7 @@ if __name__ == "__main__":
                      color="orange", alpha=0.3, label="±1 std dev")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.title("Average Reward Across 10 Runs")
+    plt.title("Average Reward Across 5 Runs")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
