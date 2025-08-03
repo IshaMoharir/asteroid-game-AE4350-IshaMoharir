@@ -1,0 +1,18 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+
+# Ignore model checkpoints and logs
+models/
+*.pth
+*.npy
+
+# Ignore system files
+.DS_Store
+
+# Ignore virtual environments
+venv/
+env/
+
+# Ignore evaluation output
+rl/eval/
