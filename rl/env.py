@@ -35,6 +35,8 @@ class AsteroidsEnv(gym.Env):
         self.hits_landed = 0
         self.idle_steps = 0
         self.ship_deaths = 0
+        self.edge_counter = 0
+
         return self._get_state()
 
     def step(self, action):
@@ -115,6 +117,20 @@ class AsteroidsEnv(gym.Env):
         if norm_x < edge_margin or norm_x > 1 - edge_margin or \
                 norm_y < edge_margin or norm_y > 1 - edge_margin:
             reward -= 0.4
+
+        near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
+                    norm_y < edge_margin or norm_y > 1 - edge_margin
+
+        if near_edge:
+            reward -= 0.4  # or stronger penalty
+            self.edge_counter += 1
+        else:
+            self.edge_counter = 0  # reset when away from edge
+
+        # End episode if hugging edge too long
+        if self.edge_counter > 20:
+            reward -= 2.0
+            self.done = True
 
         # Additional penalty: the further from center, the worse
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
