@@ -30,6 +30,7 @@ class DQNAgent:
     def __init__(self, state_dim, action_dim, gamma=0.99, lr=1e-3):
         self.action_dim = action_dim
         self.gamma = gamma
+        # Epsilon is used for epsilon-greedy action selection, balancing exploration and exploitation.
         self.epsilon = 1.0
         self.epsilon_decay = 0.9995  # or 0.996
         self.epsilon_min = 0.05
