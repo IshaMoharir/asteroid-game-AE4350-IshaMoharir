@@ -116,6 +116,10 @@ class AsteroidsEnv(gym.Env):
                 norm_y < edge_margin or norm_y > 1 - edge_margin:
             reward -= 0.4
 
+        # Additional penalty: the further from center, the worse
+        center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
+        reward -= 0.6 * center_dist
+
         # --- Penalise not shooting when asteroid is in front ---
         if not shoot:
             ship_dir = self.ship.direction.normalize()
