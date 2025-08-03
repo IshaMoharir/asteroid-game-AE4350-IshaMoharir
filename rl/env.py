@@ -26,7 +26,8 @@ class AsteroidsEnv(gym.Env):
 
     def reset(self):
         self.ship = Ship(WIDTH // 2, HEIGHT // 2)
-        self.asteroids = [Asteroid(size=random.choice(["large", "medium", "small"])) for _ in range(5)]
+        NUM_ASTEROIDS = 10  # tweakable constant
+        self.asteroids = [Asteroid(size=random.choice(["large", "medium", "small"])) for _ in range(NUM_ASTEROIDS)]
         self.bullets = []
         self.score = 0
         self.done = False
@@ -128,8 +129,8 @@ class AsteroidsEnv(gym.Env):
             self.edge_counter = 0  # reset when away from edge
 
         # End episode if hugging edge too long
-        if self.edge_counter > 70:
-            reward -= 1.0
+        if self.edge_counter > 150:
+            reward -= 0.5
             self.done = True
 
         # Additional penalty: the further from center, the worse
