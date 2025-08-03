@@ -66,6 +66,9 @@ class AsteroidsEnv(gym.Env):
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
                 self.bullets_fired += 1
 
+                # Optional: bonus for *choosing* to shoot
+                reward += 0.05  # shooting intent reward
+
         # Penalise idling, reward movement
         if self.ship.vel.length() < 0.05:
             reward -= 0.1
@@ -120,6 +123,18 @@ class AsteroidsEnv(gym.Env):
                 if abs(angle) < 15:  # within a ~30° cone in front
                     reward -= 0.2
                     break
+
+        # --- Reward for pointing at closest asteroid ---
+        if self.asteroids:
+            closest = min(self.asteroids, key=lambda a: self.ship.pos.distance_to(a.pos))
+            to_asteroid = (closest.pos - self.ship.pos).normalize()
+            ship_dir = self.ship.direction.normalize()
+            angle = ship_dir.angle_to(to_asteroid)
+
+            if abs(angle) < 10:  # really well aligned
+                reward += 0.2
+            elif abs(angle) < 25:  # fairly aligned
+                reward += 0.1
 
         # Update game state
         self.ship.update()
