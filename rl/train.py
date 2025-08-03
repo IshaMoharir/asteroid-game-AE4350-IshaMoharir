@@ -126,8 +126,9 @@ if __name__ == "__main__":
     # Find the best model
     best = max(results, key=lambda x: x[0])
 
+    # Save the best model path
     with open("models/best_model_path.txt", "w") as f:
-        f.write(best[1])
+        f.write(f"rl/{best[1]}")
 
     # Plot
     plt.figure(figsize=(10, 5))

@@ -5,7 +5,7 @@ from rl.dqn_agent import DQN
 from rl.env import AsteroidsEnv
 
 # --- Load best model path from file ---
-with open("models/best_model_path.txt", "r") as f:
+with open("rl/models/best_model_path.txt", "r") as f:
     MODEL_PATH = f.read().strip()
 
 episodes = 5  # Number of episodes to watch
