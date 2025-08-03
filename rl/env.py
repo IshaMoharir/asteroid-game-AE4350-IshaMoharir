@@ -117,13 +117,13 @@ class AsteroidsEnv(gym.Env):
         norm_y = self.ship.pos.y / HEIGHT
         if norm_x < edge_margin or norm_x > 1 - edge_margin or \
                 norm_y < edge_margin or norm_y > 1 - edge_margin:
-            reward -= 0.4
+            reward -= 0.15
 
         near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
                     norm_y < edge_margin or norm_y > 1 - edge_margin
 
         if near_edge:
-            reward -= 0.3  # or stronger penalty
+            reward -= 0.15  # or stronger penalty
             self.edge_counter += 1
         else:
             self.edge_counter = 0  # reset when away from edge
