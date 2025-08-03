@@ -8,13 +8,7 @@ from game.bullet import Bullet
 from game.config import *
 
 class AsteroidsEnv(gym.Env):
-    """Custom Gym environment for the Asteroids game.
-    This environment simulates the Asteroids game where an agent controls a ship
-    to avoid asteroids, shoot them, and maximize its score.
-    The state space includes the ship's position, velocity, and nearby asteroids.
-    The action space includes thrusting in different directions and shooting.
-    The environment can be rendered using Pygame for visualization.
-    """
+    """Custom Gym environment for the Asteroids game."""
     def __init__(self, render_mode=False):
         self.render_mode = render_mode
         if render_mode:
@@ -26,7 +20,7 @@ class AsteroidsEnv(gym.Env):
 
     def reset(self):
         self.ship = Ship(WIDTH // 2, HEIGHT // 2)
-        NUM_ASTEROIDS = 10  # tweakable constant
+        NUM_ASTEROIDS = 8
         self.asteroids = [Asteroid(size=random.choice(["large", "medium", "small"])) for _ in range(NUM_ASTEROIDS)]
         self.bullets = []
         self.score = 0
@@ -37,14 +31,17 @@ class AsteroidsEnv(gym.Env):
         self.idle_steps = 0
         self.ship_deaths = 0
         self.edge_counter = 0
-
         return self._get_state()
 
     def step(self, action):
         if self.done:
             return self._get_state(), 0, True, {}
 
-        # Action mapping
+        # Helper to safely normalize vectors
+        def safe_normalize(v):
+            return v.normalize() if v.length() > 0 else pygame.math.Vector2(0, 0)
+
+        # --- Action Mapping ---
         thrust = pygame.math.Vector2(0, 0)
         shoot = False
         if action == 1:
@@ -60,35 +57,33 @@ class AsteroidsEnv(gym.Env):
 
         self.ship.apply_thrust(thrust)
 
+        # --- Rewards and Metrics ---
         reward = 0
         alignment_reward = 0
         shooting_reward = 0
 
-        # Shooting logic
+        # --- Shooting logic ---
         if shoot:
-            reward -= 0.01  # small cost to discourage spam
+            reward -= 0.01
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
                 self.bullets_fired += 1
-
-                # Optional: bonus for *choosing* to shoot
                 shooting_reward = 0.2
                 reward += shooting_reward
 
-        # Penalise idling, reward movement
+        # --- Idling penalty / movement reward ---
         if self.ship.vel.length() < 0.05:
             reward -= 0.1
             self.idle_steps += 1
         else:
             reward += 0.03
 
-        # Bullet-asteroid collisions
+        # --- Bullet-asteroid collisions ---
         for b in self.bullets[:]:
             b.update()
             if b.off_screen():
                 self.bullets.remove(b)
                 continue
-
             for a in self.asteroids[:]:
                 if a.get_rect().collidepoint(b.pos):
                     self.bullets.remove(b)
@@ -98,7 +93,7 @@ class AsteroidsEnv(gym.Env):
                     self.hits_landed += 1
                     break
 
-        # Ship-asteroid collision
+        # --- Ship-asteroid collisions ---
         ship_rect = pygame.Rect(self.ship.pos.x - SHIP_RADIUS, self.ship.pos.y - SHIP_RADIUS,
                                 SHIP_RADIUS * 2, SHIP_RADIUS * 2)
         for a in self.asteroids:
@@ -108,59 +103,50 @@ class AsteroidsEnv(gym.Env):
                 self.ship_deaths += 1
                 break
 
-        # Survival bonus
-        # reward += 0.002
-
-        # --- Penalise being near any edge of the screen ---
-        edge_margin = 0.1  # 10% of screen width/height
+        # --- Penalise being near edge ---
+        edge_margin = 0.1
         norm_x = self.ship.pos.x / WIDTH
         norm_y = self.ship.pos.y / HEIGHT
-        if norm_x < edge_margin or norm_x > 1 - edge_margin or \
-                norm_y < edge_margin or norm_y > 1 - edge_margin:
-            reward -= 0.15
-
         near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
                     norm_y < edge_margin or norm_y > 1 - edge_margin
-
         if near_edge:
-            reward -= 0.15  # or stronger penalty
+            reward -= 0.15
             self.edge_counter += 1
         else:
-            self.edge_counter = 0  # reset when away from edge
+            self.edge_counter = 0
 
-        # End episode if hugging edge too long
+        # --- Die if hugging edge too long ---
         if self.edge_counter > 150:
             reward -= 0.5
             self.done = True
 
-        # Additional penalty: the further from center, the worse
+        # --- Penalise distance from center ---
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
         reward -= 0.6 * center_dist
 
-        # --- Penalise not shooting when asteroid is in front ---
+        # --- Penalise not shooting when asteroid in front ---
         if not shoot:
-            ship_dir = self.ship.direction.normalize()
+            ship_dir = safe_normalize(self.ship.direction)
             for asteroid in self.asteroids:
-                to_asteroid = (asteroid.pos - self.ship.pos).normalize()
+                to_asteroid = safe_normalize(asteroid.pos - self.ship.pos)
                 angle = ship_dir.angle_to(to_asteroid)
-                if abs(angle) < 15:  # within a ~30° cone in front
+                if abs(angle) < 15:
                     reward -= 0.4
                     break
 
-        # --- Reward for pointing at closest asteroid ---
+        # --- Reward pointing at closest asteroid ---
         if self.asteroids:
             closest = min(self.asteroids, key=lambda a: self.ship.pos.distance_to(a.pos))
-            to_asteroid = (closest.pos - self.ship.pos).normalize()
-            ship_dir = self.ship.direction.normalize()
+            to_asteroid = safe_normalize(closest.pos - self.ship.pos)
+            ship_dir = safe_normalize(self.ship.direction)
             angle = ship_dir.angle_to(to_asteroid)
-
-            if abs(angle) < 10:  # really well aligned
+            if abs(angle) < 10:
                 alignment_reward = 0.3
-            elif abs(angle) < 25:  # fairly aligned
+            elif abs(angle) < 25:
                 alignment_reward = 0.2
             reward += alignment_reward
 
-        # Update game state
+        # --- Game State Update ---
         self.ship.update()
         for a in self.asteroids:
             a.update()
@@ -186,7 +172,6 @@ class AsteroidsEnv(gym.Env):
             self.ship.vel.x / 10,
             self.ship.vel.y / 10
         ]
-
         asteroids = sorted(self.asteroids, key=lambda a: self.ship.pos.distance_to(a.pos))[:3]
         for a in asteroids:
             state += [
@@ -196,7 +181,6 @@ class AsteroidsEnv(gym.Env):
             ]
         while len(state) < 4 + 3 * 3:
             state += [0, 0, 0]
-
         return np.array(state, dtype=np.float32)
 
     def _render(self):
@@ -207,7 +191,6 @@ class AsteroidsEnv(gym.Env):
             a.draw(self.screen)
         for b in self.bullets:
             b.draw(self.screen)
-
         font = pygame.font.SysFont(None, 28)
         score_text = font.render(f"Score: {int(self.score)}", True, (255, 255, 255))
         self.screen.blit(score_text, (10, 10))
