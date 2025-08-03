@@ -63,7 +63,7 @@ def train_agent(run_id, episodes=500, max_steps=500):
 
         if len(all_rewards) >= moving_avg_window:
             moving_avg = sum(all_rewards[-moving_avg_window:]) / moving_avg_window
-            if moving_avg > best_avg_reward:
+            if ep > 100 and moving_avg > best_avg_reward:
                 best_avg_reward = moving_avg
                 torch.save(agent.model.state_dict(), f"models/best_model_run{run_id}.pth")
 

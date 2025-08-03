@@ -31,9 +31,9 @@ class DQNAgent:
         self.action_dim = action_dim
         self.gamma = gamma
         self.epsilon = 1.0
-        # self.epsilon_decay = 0.995  # or 0.996
+        self.epsilon_decay = 0.9995  # or 0.996
         self.epsilon_min = 0.05
-        self.epsilon_decay = 1 - (1 - self.epsilon_min) / 500  # decay to min over ~800 eps
+        # self.epsilon_decay = 1 - (1 - self.epsilon_min) / 500  # decay to min over ~800 eps
 
         self.model = DQN(state_dim, action_dim)
         self.target = DQN(state_dim, action_dim)
