@@ -6,13 +6,15 @@ import numpy as np
 from rl.env import AsteroidsEnv
 from rl.dqn_agent import DQNAgent
 
+# ------ Training Loop for a Single Run ------
 def train_agent(run_id, episodes=1000, max_steps=500):
-    # Setup
+    # --- Environment and Agent Setup ---
     env = AsteroidsEnv(render_mode=False)
     state_dim = len(env.reset())
     action_dim = 6
     agent = DQNAgent(state_dim, action_dim)
 
+    # --- Tracking Variables ---
     all_rewards = []
     alignment_rewards = []
     shooting_rewards = []
@@ -31,6 +33,7 @@ def train_agent(run_id, episodes=1000, max_steps=500):
 
     global_start = time.time()
 
+    # --- Episode Loop ---
     for ep in range(episodes):
         state = env.reset()
         total_reward = 0
@@ -39,6 +42,7 @@ def train_agent(run_id, episodes=1000, max_steps=500):
         ep_start = time.time()
         action_counts = [0] * action_dim
 
+        # --- Step Loop ---
         while not done and steps < max_steps:
             action = agent.act(state)
             action_counts[action] += 1
@@ -49,10 +53,12 @@ def train_agent(run_id, episodes=1000, max_steps=500):
             total_reward += reward
             steps += 1
 
+        # --- Target Network Update & Epsilon Decay ---
         if ep % 10 == 0:
             agent.update_target()
         agent.epsilon = max(agent.epsilon * agent.epsilon_decay, agent.epsilon_min)
 
+        # --- Logging Rewards ---
         all_rewards.append(total_reward)
         alignment_rewards.append(info.get("alignment_reward", 0))
         shooting_rewards.append(info.get("shooting_reward", 0))
@@ -61,13 +67,14 @@ def train_agent(run_id, episodes=1000, max_steps=500):
             if key in info:
                 metric_sums[key] += info[key]
 
+        # --- Save Best Model (after warm-up) ---
         if len(all_rewards) >= moving_avg_window:
             moving_avg = sum(all_rewards[-moving_avg_window:]) / moving_avg_window
             if ep > 100 and moving_avg > best_avg_reward:
                 best_avg_reward = moving_avg
                 torch.save(agent.model.state_dict(), f"models/best_model_run{run_id}.pth")
 
-        # Time tracking
+        # --- ETA Estimation ---
         ep_time = time.time() - ep_start
         episode_durations.append(ep_time)
         if len(episode_durations) > 10:
@@ -75,7 +82,7 @@ def train_agent(run_id, episodes=1000, max_steps=500):
         avg_ep_time = sum(episode_durations) / len(episode_durations)
         remaining = (episodes - (ep + 1)) * avg_ep_time
 
-        # Periodic print
+        # --- Print Stats Every 10 Episodes ---
         if (ep + 1) % 10 == 0 or ep == 0:
             avg_metrics = {k: v / 10 for k, v in metric_sums.items()}
             print(f"\n[Run {run_id}] Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
@@ -88,12 +95,12 @@ def train_agent(run_id, episodes=1000, max_steps=500):
             for key in metric_sums:
                 metric_sums[key] = 0
 
-    # Save final model
+    # ------ Save Model and Reward Logs ------
     torch.save(agent.model.state_dict(), f"models/final_model_run{run_id}.pth")
     np.save(f"models/alignment_rewards_run{run_id}.npy", alignment_rewards)
     np.save(f"models/shooting_rewards_run{run_id}.npy", shooting_rewards)
 
-    # Plot rewards
+    # ------ Plot Reward Curve ------
     plt.figure(figsize=(10, 5))
     plt.plot(all_rewards, label="Total reward per episode")
     if len(all_rewards) >= moving_avg_window:
@@ -113,29 +120,32 @@ def train_agent(run_id, episodes=1000, max_steps=500):
 
     return best_avg_reward, f"models/best_model_run{run_id}.pth", all_rewards
 
+
+# ------ Main: Run Multiple Training Sessions ------
 if __name__ == "__main__":
     os.makedirs("models", exist_ok=True)
     results = []
     all_rewards_all_runs = []
 
+    # --- Train Agent Across Multiple Runs ---
     for i in range(5):
         avg_reward, model_path, rewards = train_agent(run_id=i)
         results.append((avg_reward, model_path))
         all_rewards_all_runs.append(rewards)
 
-    # Compute mean and std per episode index
+    # --- Calculate Mean and Std Deviation Across Runs ---
     rewards_array = np.array(all_rewards_all_runs)
     mean_per_ep = np.mean(rewards_array, axis=0)
     std_per_ep = np.std(rewards_array, axis=0)
-
     np.save("models/mean_rewards.npy", mean_per_ep)
     np.save("models/std_rewards.npy", std_per_ep)
 
+    # --- Save Path to Best Model ---
     best = max(results, key=lambda x: x[0])
     with open("models/best_model_path.txt", "w") as f:
         f.write(f"rl/{best[1]}")
 
-    # Plot average curve
+    # --- Plot Average Reward Curve ---
     plt.figure(figsize=(10, 5))
     plt.plot(mean_per_ep, label="Mean reward per episode")
     plt.fill_between(range(len(mean_per_ep)),
