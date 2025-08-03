@@ -58,6 +58,8 @@ class AsteroidsEnv(gym.Env):
         self.ship.apply_thrust(thrust)
 
         reward = 0
+        alignment_reward = 0
+        shooting_reward = 0
 
         # Shooting logic
         if shoot:
@@ -67,7 +69,8 @@ class AsteroidsEnv(gym.Env):
                 self.bullets_fired += 1
 
                 # Optional: bonus for *choosing* to shoot
-                reward += 0.05  # shooting intent reward
+                shooting_reward = 0.05
+                reward += shooting_reward
 
         # Penalise idling, reward movement
         if self.ship.vel.length() < 0.05:
@@ -109,7 +112,6 @@ class AsteroidsEnv(gym.Env):
         edge_margin = 0.1  # 10% of screen width/height
         norm_x = self.ship.pos.x / WIDTH
         norm_y = self.ship.pos.y / HEIGHT
-
         if norm_x < edge_margin or norm_x > 1 - edge_margin or \
                 norm_y < edge_margin or norm_y > 1 - edge_margin:
             reward -= 0.15
@@ -132,9 +134,10 @@ class AsteroidsEnv(gym.Env):
             angle = ship_dir.angle_to(to_asteroid)
 
             if abs(angle) < 10:  # really well aligned
-                reward += 0.2
+                alignment_reward = 0.2
             elif abs(angle) < 25:  # fairly aligned
-                reward += 0.1
+                alignment_reward = 0.1
+            reward += alignment_reward
 
         # Update game state
         self.ship.update()
@@ -150,7 +153,9 @@ class AsteroidsEnv(gym.Env):
             "bullets_fired": self.bullets_fired,
             "hits_landed": self.hits_landed,
             "idle_steps": self.idle_steps,
-            "ship_deaths": self.ship_deaths
+            "ship_deaths": self.ship_deaths,
+            "alignment_reward": alignment_reward,
+            "shooting_reward": shooting_reward
         }
 
     def _get_state(self):
