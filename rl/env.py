@@ -71,7 +71,7 @@ class AsteroidsEnv(gym.Env):
                 self.bullets_fired += 1
 
                 # Optional: bonus for *choosing* to shoot
-                shooting_reward = 0.05
+                shooting_reward = 0.2
                 reward += shooting_reward
 
         # Penalise idling, reward movement
@@ -108,7 +108,7 @@ class AsteroidsEnv(gym.Env):
                 break
 
         # Survival bonus
-        reward += 0.002
+        # reward += 0.002
 
         # --- Penalise being near any edge of the screen ---
         edge_margin = 0.1  # 10% of screen width/height
@@ -122,14 +122,14 @@ class AsteroidsEnv(gym.Env):
                     norm_y < edge_margin or norm_y > 1 - edge_margin
 
         if near_edge:
-            reward -= 0.4  # or stronger penalty
+            reward -= 0.3  # or stronger penalty
             self.edge_counter += 1
         else:
             self.edge_counter = 0  # reset when away from edge
 
         # End episode if hugging edge too long
-        if self.edge_counter > 20:
-            reward -= 2.0
+        if self.edge_counter > 70:
+            reward -= 1.0
             self.done = True
 
         # Additional penalty: the further from center, the worse
@@ -143,7 +143,7 @@ class AsteroidsEnv(gym.Env):
                 to_asteroid = (asteroid.pos - self.ship.pos).normalize()
                 angle = ship_dir.angle_to(to_asteroid)
                 if abs(angle) < 15:  # within a ~30° cone in front
-                    reward -= 0.2
+                    reward -= 0.4
                     break
 
         # --- Reward for pointing at closest asteroid ---
@@ -154,9 +154,9 @@ class AsteroidsEnv(gym.Env):
             angle = ship_dir.angle_to(to_asteroid)
 
             if abs(angle) < 10:  # really well aligned
-                alignment_reward = 0.2
+                alignment_reward = 0.3
             elif abs(angle) < 25:  # fairly aligned
-                alignment_reward = 0.1
+                alignment_reward = 0.2
             reward += alignment_reward
 
         # Update game state
