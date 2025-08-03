@@ -109,7 +109,7 @@ if __name__ == "__main__":
     results = []
     all_rewards_all_runs = []
 
-    for i in range(10):
+    for i in range(5):
         avg_reward, model_path, rewards = train_agent(run_id=i)
         results.append((avg_reward, model_path))
         all_rewards_all_runs.append(rewards)
