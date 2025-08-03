@@ -7,7 +7,7 @@ from rl.env import AsteroidsEnv
 from rl.dqn_agent import DQNAgent
 
 # ------ Training Loop for a Single Run ------
-def train_agent(run_id, episodes=1000, max_steps=500):
+def train_agent(run_id, episodes=2000, max_steps=500):
     # --- Environment and Agent Setup ---
     env = AsteroidsEnv(render_mode=False)
     state_dim = len(env.reset())
@@ -19,7 +19,7 @@ def train_agent(run_id, episodes=1000, max_steps=500):
     alignment_rewards = []
     shooting_rewards = []
     best_avg_reward = float('-inf')
-    moving_avg_window = 20
+    moving_avg_window = 50
     episode_durations = []
 
     metric_sums = {
@@ -82,8 +82,8 @@ def train_agent(run_id, episodes=1000, max_steps=500):
         avg_ep_time = sum(episode_durations) / len(episode_durations)
         remaining = (episodes - (ep + 1)) * avg_ep_time
 
-        # --- Print Stats Every 10 Episodes ---
-        if (ep + 1) % 10 == 0 or ep == 0:
+        # --- Print Stats Every 20 Episodes ---
+        if (ep + 1) % 20 == 0 or ep == 0:
             avg_metrics = {k: v / 10 for k, v in metric_sums.items()}
             print(f"\n[Run {run_id}] Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
             print(f"  🔫 Bullets: {avg_metrics['bullets_fired']:.1f} | 🎯 Hits: {avg_metrics['hits_landed']:.1f} | "
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     all_rewards_all_runs = []
 
     # --- Train Agent Across Multiple Runs ---
-    for i in range(5):
+    for i in range(10):
         avg_reward, model_path, rewards = train_agent(run_id=i)
         results.append((avg_reward, model_path))
         all_rewards_all_runs.append(rewards)
@@ -154,7 +154,7 @@ if __name__ == "__main__":
                      color="orange", alpha=0.3, label="±1 std dev")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.title("Average Reward Across 5 Runs")
+    plt.title("Average Reward Across 10 Runs")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
