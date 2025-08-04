@@ -144,7 +144,7 @@ class AsteroidsEnv(gym.Env):
 
         # --- Center distance penalty ---
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
-        reward -= 0.2 * center_dist  # 🔧 Discourage staying away from center
+        reward -= 0.1 * center_dist  # 🔧 Discourage staying away from center
 
         # --- Missed shot penalty (if asteroid ahead) ---
         if not shoot:
