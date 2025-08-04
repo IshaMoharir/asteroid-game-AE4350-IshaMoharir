@@ -34,6 +34,8 @@ class AsteroidsEnv(gym.Env):
         self.idle_steps = 0
         self.ship_deaths = 0
         self.edge_counter = 0
+        self.step_counter = 0
+
         return self._get_state()
 
     def step(self, action):
@@ -175,7 +177,10 @@ class AsteroidsEnv(gym.Env):
                 alignment_reward = 0.35  # 🔧 Smaller reward
             reward += alignment_reward
 
-        reward += 0.05  # 🔧 Small reward per timestep survived
+        self.step_counter += 1
+
+        if self.step_counter % 20 == 0:  # Every 60 steps
+            reward += 0.05  # 🔧 Small reward per timestep survived
 
         # --- Detect repetitive action patterns ---
         if len(self.action_history) == self.history_window:
