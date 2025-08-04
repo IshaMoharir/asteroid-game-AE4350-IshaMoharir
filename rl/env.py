@@ -187,7 +187,7 @@ class AsteroidsEnv(gym.Env):
             most_common = max(set(self.action_history), key=self.action_history.count)
             freq = self.action_history.count(most_common)
             repetition_ratio = freq / self.history_window
-            if repetition_ratio >= 0.90:
+            if repetition_ratio >= 0.92:
                 reward -= 0.1  # 🔧 Penalty for repetitive behaviour
                 print(f"[INFO] Repetitive behaviour detected: {repetition_ratio*100:.1f}% → penalty applied")
 

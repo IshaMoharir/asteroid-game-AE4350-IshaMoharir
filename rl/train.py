@@ -82,8 +82,8 @@ def train_agent(run_id, episodes=5000, max_steps=500):
         avg_ep_time = sum(episode_durations) / len(episode_durations)
         remaining = (episodes - (ep + 1)) * avg_ep_time
 
-        # --- Print Stats Every 50 Episodes ---
-        if (ep + 1) % 50 == 0 or ep == 0:
+        # --- Print Stats Every 100 Episodes ---
+        if (ep + 1) % 100 == 0 or ep == 0:
             avg_metrics = {k: v / 10 for k, v in metric_sums.items()}
             print(f"\n[Run {run_id}] Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
             print(f"  🔫 Bullets: {avg_metrics['bullets_fired']:.1f} | 🎯 Hits: {avg_metrics['hits_landed']:.1f} | "
