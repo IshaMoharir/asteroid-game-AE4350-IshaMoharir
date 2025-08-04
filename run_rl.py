@@ -11,7 +11,7 @@ import os
 with open("rl/models/best_model_path.txt", "r") as f:
     MODEL_PATH = f.read().strip()
 
-episodes = 10  # Number of episodes to watch
+episodes = 100  # Number of episodes to watch
 
 # --- Load environment ---
 env = AsteroidsEnv(render_mode=True)
