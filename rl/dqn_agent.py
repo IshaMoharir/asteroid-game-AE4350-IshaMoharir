@@ -27,7 +27,7 @@ class DQNAgent:
     ''' A Deep Q-Network (DQN) agent for reinforcement learning tasks.'''
 
     # Parameters:
-    def __init__(self, state_dim, action_dim, gamma=0.99, lr=1e-3):
+    def __init__(self, state_dim, action_dim, gamma=0.99, lr=5e-4):
         self.action_dim = action_dim
         self.gamma = gamma
         # Epsilon is used for epsilon-greedy action selection, balancing exploration and exploitation.
