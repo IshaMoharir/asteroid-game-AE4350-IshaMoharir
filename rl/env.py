@@ -107,7 +107,7 @@ class AsteroidsEnv(gym.Env):
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
                 self.bullets_fired += 1
-                shooting_reward = 0.4
+                shooting_reward = 0.2
                 reward += shooting_reward
 
         # --- Idle or movement ---
@@ -137,7 +137,7 @@ class AsteroidsEnv(gym.Env):
                                 SHIP_RADIUS * 2, SHIP_RADIUS * 2)
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
-                reward = -7.0
+                reward = -15.0
                 self.done = True
                 self.ship_deaths += 1
                 return reward, alignment_reward, shooting_reward
@@ -149,7 +149,7 @@ class AsteroidsEnv(gym.Env):
         near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
                     norm_y < edge_margin or norm_y > 1 - edge_margin
         if near_edge:
-            reward -= 0.05
+            reward -= 0.1
             self.edge_counter += 1
         else:
             self.edge_counter = 0
