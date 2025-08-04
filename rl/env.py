@@ -13,6 +13,7 @@ class AsteroidsEnv(gym.Env):
         self.render_mode = render_mode
         self.action_history = []
         self.history_window = 30
+        self.episode_number = 0  # 🔧 Track episodes for curriculum
         if render_mode:
             pygame.init()
             self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -22,8 +23,16 @@ class AsteroidsEnv(gym.Env):
         self.reset()
 
     def reset(self):
+        self.episode_number += 1
+
+        # --- Curriculum: gradually increase number of asteroids ---
+        max_episodes = 20000 # Total episodes for curriculum
+        min_asteroids = 6 # Minimum number of asteroids
+        max_asteroids = 18 # Maximum number of asteroids
+        progress = min(1.0, self.episode_number / max_episodes)
+        NUM_ASTEROIDS = int(min_asteroids + progress * (max_asteroids - min_asteroids))
+
         self.ship = Ship(WIDTH // 2, HEIGHT // 2)
-        NUM_ASTEROIDS = 8  # 🔧 Tweak: number of starting asteroids
         self.asteroids = [Asteroid(size=random.choice(["large", "medium", "small"])) for _ in range(NUM_ASTEROIDS)]
         self.bullets = []
         self.score = 0
@@ -95,19 +104,18 @@ class AsteroidsEnv(gym.Env):
 
         # --- Shooting ---
         if shoot:
-            # reward -= 0.005  # 🔧 Small penalty for firing
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
                 self.bullets_fired += 1
-                shooting_reward = 0.4  # 🔧 Reward for shooting
+                shooting_reward = 0.4
                 reward += shooting_reward
 
         # --- Idle or movement ---
         if self.ship.vel.length() < 0.05:
-            reward -= 0.03  # 🔧 Penalty for being idle
+            reward -= 0.03
             self.idle_steps += 1
         else:
-            reward += 0.08  # 🔧 Reward for movement
+            reward += 0.08
 
         # --- Bullet hits ---
         for b in self.bullets[:]:
@@ -120,7 +128,7 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 30.0  # 🔧 Big reward for destroying asteroid
+                    reward += 30.0
                     self.hits_landed += 1
                     break
 
@@ -129,7 +137,7 @@ class AsteroidsEnv(gym.Env):
                                 SHIP_RADIUS * 2, SHIP_RADIUS * 2)
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
-                reward = -7.0  # 🔧 Death penalty
+                reward = -7.0
                 self.done = True
                 self.ship_deaths += 1
                 return reward, alignment_reward, shooting_reward
@@ -141,19 +149,19 @@ class AsteroidsEnv(gym.Env):
         near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
                     norm_y < edge_margin or norm_y > 1 - edge_margin
         if near_edge:
-            reward -= 0.05  # 🔧 Penalty for being near edge
+            reward -= 0.05
             self.edge_counter += 1
         else:
             self.edge_counter = 0
 
-        if self.edge_counter > 150:
-            reward -= 0.2  # 🔧 Extra penalty if hugging edge too long
+        if self.edge_counter > 120:
+            reward -= 0.2
             self.done = True
             return reward, alignment_reward, shooting_reward
 
         # --- Center distance penalty ---
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
-        reward -= 0.05 * center_dist  # 🔧 Discourage staying away from center
+        reward -= 0.05 * center_dist
 
         # --- Missed shot penalty (if asteroid ahead) ---
         if not shoot:
@@ -162,7 +170,7 @@ class AsteroidsEnv(gym.Env):
                 to_asteroid = safe_normalize(asteroid.pos - self.ship.pos)
                 angle = ship_dir.angle_to(to_asteroid)
                 if abs(angle) < 15:
-                    reward -= 0.1  # 🔧 Penalty for not shooting when asteroid in front
+                    reward -= 0.1
                     break
 
         # --- Alignment reward with closest asteroid ---
@@ -172,15 +180,14 @@ class AsteroidsEnv(gym.Env):
             ship_dir = safe_normalize(self.ship.direction)
             angle = ship_dir.angle_to(to_asteroid)
             if abs(angle) < 10:
-                alignment_reward = 0.5  # 🔧 High reward for aiming precisely
+                alignment_reward = 0.5
             elif abs(angle) < 25:
-                alignment_reward = 0.35  # 🔧 Smaller reward
+                alignment_reward = 0.35
             reward += alignment_reward
 
         self.step_counter += 1
-
-        if self.step_counter % 20 == 0:  # Every 20 steps
-            reward += 0.05  # 🔧 Small reward per timestep survived
+        if self.step_counter % 20 == 0:
+            reward += 0.05
 
         # --- Detect repetitive action patterns ---
         if len(self.action_history) == self.history_window:
@@ -188,8 +195,7 @@ class AsteroidsEnv(gym.Env):
             freq = self.action_history.count(most_common)
             repetition_ratio = freq / self.history_window
             if repetition_ratio >= 0.92:
-                reward -= 0.1  # 🔧 Penalty for repetitive behaviour
-                print(f"[INFO] Repetitive behaviour detected: {repetition_ratio*100:.1f}% → penalty applied")
+                reward -= 0.05
 
         return reward, alignment_reward, shooting_reward
 
@@ -205,10 +211,10 @@ class AsteroidsEnv(gym.Env):
             state += [
                 a.pos.x / WIDTH,
                 a.pos.y / HEIGHT,
-                ASTEROID_SIZES[a.size]["radius"] / 40  # 🔧 Normalize asteroid size
+                ASTEROID_SIZES[a.size]["radius"] / 40
             ]
         while len(state) < 4 + 3 * 3:
-            state += [0, 0, 0]  # Padding for missing asteroids
+            state += [0, 0, 0]
         return np.array(state, dtype=np.float32)
 
     def _render(self):
