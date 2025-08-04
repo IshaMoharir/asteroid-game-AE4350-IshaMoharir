@@ -95,7 +95,7 @@ class AsteroidsEnv(gym.Env):
 
         # --- Shooting ---
         if shoot:
-            reward -= 0.005  # 🔧 Small penalty for firing
+            # reward -= 0.005  # 🔧 Small penalty for firing
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
                 self.bullets_fired += 1
@@ -107,7 +107,7 @@ class AsteroidsEnv(gym.Env):
             reward -= 0.03  # 🔧 Penalty for being idle
             self.idle_steps += 1
         else:
-            reward += 0.06  # 🔧 Reward for movement
+            reward += 0.08  # 🔧 Reward for movement
 
         # --- Bullet hits ---
         for b in self.bullets[:]:
@@ -120,7 +120,7 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 20.0  # 🔧 Big reward for destroying asteroid
+                    reward += 30.0  # 🔧 Big reward for destroying asteroid
                     self.hits_landed += 1
                     break
 
@@ -129,7 +129,7 @@ class AsteroidsEnv(gym.Env):
                                 SHIP_RADIUS * 2, SHIP_RADIUS * 2)
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
-                reward = -5.0  # 🔧 Death penalty
+                reward = -7.0  # 🔧 Death penalty
                 self.done = True
                 self.ship_deaths += 1
                 return reward, alignment_reward, shooting_reward
@@ -153,7 +153,7 @@ class AsteroidsEnv(gym.Env):
 
         # --- Center distance penalty ---
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
-        reward -= 0.1 * center_dist  # 🔧 Discourage staying away from center
+        reward -= 0.05 * center_dist  # 🔧 Discourage staying away from center
 
         # --- Missed shot penalty (if asteroid ahead) ---
         if not shoot:
@@ -179,7 +179,7 @@ class AsteroidsEnv(gym.Env):
 
         self.step_counter += 1
 
-        if self.step_counter % 20 == 0:  # Every 60 steps
+        if self.step_counter % 20 == 0:  # Every 20 steps
             reward += 0.05  # 🔧 Small reward per timestep survived
 
         # --- Detect repetitive action patterns ---
