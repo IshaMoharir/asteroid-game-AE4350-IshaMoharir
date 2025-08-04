@@ -168,6 +168,8 @@ class AsteroidsEnv(gym.Env):
                 alignment_reward = 0.35  # 🔧 Smaller reward
             reward += alignment_reward
 
+        reward += 0.05  # 🔧 Small reward per timestep survived
+
         return reward, alignment_reward, shooting_reward
 
     def _get_state(self):
