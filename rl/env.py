@@ -11,11 +11,14 @@ class AsteroidsEnv(gym.Env):
     """Custom Gym environment for the Asteroids game."""
     def __init__(self, render_mode=False):
         self.render_mode = render_mode
+        self.action_history = []
+        self.history_window = 30
         if render_mode:
             pygame.init()
             self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
             self.clock = pygame.time.Clock()
             pygame.display.set_caption("Asteroids RL Agent")
+
         self.reset()
 
     def reset(self):
@@ -55,6 +58,10 @@ class AsteroidsEnv(gym.Env):
             shoot = True
 
         self.ship.apply_thrust(thrust)
+
+        self.action_history.append(action)
+        if len(self.action_history) > self.history_window:
+            self.action_history.pop(0)
 
         # --- Call reward logic ---
         reward, alignment_reward, shooting_reward = self._reward(shoot, safe_normalize)
@@ -169,6 +176,15 @@ class AsteroidsEnv(gym.Env):
             reward += alignment_reward
 
         reward += 0.05  # 🔧 Small reward per timestep survived
+
+        # --- Detect repetitive action patterns ---
+        if len(self.action_history) == self.history_window:
+            most_common = max(set(self.action_history), key=self.action_history.count)
+            freq = self.action_history.count(most_common)
+            repetition_ratio = freq / self.history_window
+            if repetition_ratio >= 0.8:
+                reward -= 1.0  # 🔧 Penalty for repetitive behaviour
+                print(f"[INFO] Repetitive behaviour detected: {repetition_ratio*100:.1f}% → penalty applied")
 
         return reward, alignment_reward, shooting_reward
 
