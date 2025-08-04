@@ -194,7 +194,7 @@ class AsteroidsEnv(gym.Env):
             most_common = max(set(self.action_history), key=self.action_history.count)
             freq = self.action_history.count(most_common)
             repetition_ratio = freq / self.history_window
-            if repetition_ratio >= 0.92:
+            if repetition_ratio >= 0.91:
                 reward -= 0.05
 
         return reward, alignment_reward, shooting_reward
