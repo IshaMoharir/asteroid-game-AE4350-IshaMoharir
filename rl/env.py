@@ -9,11 +9,12 @@ from game.config import *
 
 class AsteroidsEnv(gym.Env):
     """Custom Gym environment for the Asteroids game."""
-    def __init__(self, render_mode=False):
+    def __init__(self, render_mode=False, reward_per_hit=30.0):
         self.render_mode = render_mode
         self.action_history = []
         self.history_window = 30
         self.episode_number = 0  # 🔧 Track episodes for curriculum
+        self.reward_per_hit = reward_per_hit  # 🔧 Make asteroid reward tunable
         if render_mode:
             pygame.init()
             self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -128,7 +129,7 @@ class AsteroidsEnv(gym.Env):
                     self.bullets.remove(b)
                     self.asteroids.remove(a)
                     self.asteroids.extend(a.split())
-                    reward += 30.0
+                    reward += self.reward_per_hit
                     self.hits_landed += 1
                     break
 
