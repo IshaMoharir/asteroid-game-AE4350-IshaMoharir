@@ -11,6 +11,11 @@ lr_values = [1e-4, 5e-4]
 episodes = 3000
 runs_per_config = 3
 
+# --- Smoothing helper ---
+def smooth(y, box_pts=50):
+    box = np.ones(box_pts)/box_pts
+    return np.convolve(y, box, mode='same')
+
 # --- Patch environment reward dynamically ---
 def patch_env_reward(value):
     original_init = AsteroidsEnv.__init__
@@ -21,9 +26,14 @@ def patch_env_reward(value):
 
     AsteroidsEnv.__init__ = new_init
 
-# --- Run loop ---
+# --- Prepare folders ---
 os.makedirs("results", exist_ok=True)
+os.makedirs("models", exist_ok=True)
 
+# --- Store all results ---
+config_results = {}
+
+# --- Run loop ---
 for reward_hit in reward_per_hit_values:
     for lr in lr_values:
         label = f"hit{int(reward_hit)}_lr{lr}"
@@ -44,21 +54,55 @@ for reward_hit in reward_per_hit_values:
             all_rewards.append(rewards)
 
         all_rewards = np.array(all_rewards)
+        config_results[label] = all_rewards
         np.save(f"results/rewards_{label}.npy", all_rewards)
 
-        # Plot mean reward curve
-        mean = np.mean(all_rewards, axis=0)
-        std = np.std(all_rewards, axis=0)
+# --- Smoothed Line Plots (Split by learning rate) ---
+fig, axs = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+colors = ['blue', 'green', 'red']
 
-        plt.plot(mean, label=label)
-        plt.fill_between(range(len(mean)), mean - std, mean + std, alpha=0.2)
+for i, lr in enumerate(lr_values):
+    ax = axs[i]
+    ax.set_title(f"Learning Rate: {lr}")
+    ax.set_xlabel("Episode")
+    ax.set_ylabel("Reward")
+    ax.grid(True)
 
-# --- Final plot ---
-plt.title("Sensitivity Analysis: Reward per Hit vs Learning Rate")
-plt.xlabel("Episode")
-plt.ylabel("Reward")
-plt.legend()
-plt.grid(True)
+    for j, reward_hit in enumerate(reward_per_hit_values):
+        label = f"hit{int(reward_hit)}_lr{lr}"
+        data = config_results[label]
+        mean = np.mean(data, axis=0)
+        std = np.std(data, axis=0)
+        mean_smooth = smooth(mean)
+
+        ax.plot(mean_smooth, label=f"Hit {int(reward_hit)}", color=colors[j])
+        ax.fill_between(range(len(mean)), mean - std, mean + std, alpha=0.2, color=colors[j])
+
+    ax.legend()
+
+plt.suptitle("Sensitivity Analysis: Reward per Hit vs Learning Rate")
 plt.tight_layout()
-plt.savefig("results/sensitivity_plot.png")
+plt.savefig("results/sensitivity_split_plot.png")
+plt.show()
+
+# --- Final Performance Bar Chart ---
+final_scores = []
+final_labels = []
+
+for reward_hit in reward_per_hit_values:
+    for lr in lr_values:
+        label = f"hit{int(reward_hit)}_lr{lr}"
+        data = config_results[label]
+        avg_final_reward = np.mean(data[:, -200:])  # average over last 200 episodes
+        final_scores.append(avg_final_reward)
+        final_labels.append(label)
+
+plt.figure(figsize=(10, 5))
+bars = plt.bar(final_labels, final_scores, color='skyblue', edgecolor='black')
+plt.xticks(rotation=45)
+plt.ylabel("Average Reward (Last 200 Episodes)")
+plt.title("Final Performance Comparison")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.savefig("results/final_comparison.png")
 plt.show()
