@@ -7,8 +7,8 @@ from rl.train import train_agent
 
 # --- Parameters to sweep ---
 reward_per_hit_values = [20.0, 30.0, 40.0]
-lr_values = [1e-4, 5e-4]
-episodes = 3000
+lr_values = [1e-4, 5e-4, 1e-3]
+episodes = 5000
 runs_per_config = 3
 
 # --- Smoothing helper ---
