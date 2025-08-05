@@ -9,6 +9,7 @@ from rl.dqn_agent import DQNAgent
 # ------ Training Loop for a Single Run ------
 def train_agent(run_id, episodes=10000, max_steps=1000, lr=5e-4):
     # --- Environment and Agent Setup ---
+    os.makedirs("models", exist_ok=True)
     env = AsteroidsEnv(render_mode=False)
     state_dim = len(env.reset())
     action_dim = 6
