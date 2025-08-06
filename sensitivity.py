@@ -1,110 +1,189 @@
-import sys
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 from rl.env import AsteroidsEnv
 from rl.train import train_agent
+from game.bullet import Bullet
 
-# --- Parameters to sweep ---
-reward_per_hit_values = [20.0, 30.0, 40.0]
-lr_values = [1e-4, 5e-4, 1e-3]
-episodes = 100
-runs_per_config = 3
+# --- Search Space (All rewards/penalties + lr) ---
+search_space = {
+    "lr": [1e-4, 3e-4, 5e-4, 1e-3],
+    "reward_per_hit": [20.0, 30.0, 40.0, 50.0],
+    "shooting_reward": [0.1, 0.2, 0.3],
+    "idle_penalty": [-0.01, -0.03, -0.05],
+    "movement_reward": [0.05, 0.08, 0.1],
+    "death_penalty": [-10.0, -15.0, -20.0],
+    "edge_penalty": [-0.05, -0.1, -0.15],
+    "edge_kill_penalty": [-0.2],
+    "center_penalty_scale": [0.02, 0.05, 0.1],
+    "missed_shot_penalty": [-0.05, -0.1, -0.2],
+    "alignment_reward_close": [0.4, 0.5, 0.6],
+    "alignment_reward_mid": [0.2, 0.35, 0.4],
+    "survival_bonus": [0.02, 0.05, 0.1],
+    "repetition_penalty": [-0.05, -0.1],
+    "repetition_penalty_threshold": [0.85, 0.9, 0.95]
+}
+
+# --- Config ---
+sample_configs = 10
+runs_per_config = 2
+episodes = 1000
 
 # --- Smoothing helper ---
 def smooth(y, box_pts=50):
     box = np.ones(box_pts)/box_pts
     return np.convolve(y, box, mode='same')
 
-# --- Patch environment reward dynamically ---
-def patch_env_reward(value):
+# --- Patch environment dynamically ---
+def patch_env(cfg):
     original_init = AsteroidsEnv.__init__
 
     def new_init(self, render_mode=False):
         original_init(self, render_mode=render_mode)
-        self.reward_per_hit = value
+        for k, v in cfg.items():
+            setattr(self, k, v)
 
     AsteroidsEnv.__init__ = new_init
 
-# --- Prepare folders ---
-os.makedirs("results", exist_ok=True)
-os.makedirs("models", exist_ok=True)
+    def custom_reward(self, shoot, safe_normalize):
+        reward = 0
+        alignment_reward = 0
+        shooting_reward = 0
 
-# --- Store all results ---
+        if shoot:
+            if len(self.bullets) < 5:
+                self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
+                self.bullets_fired += 1
+                shooting_reward = getattr(self, "shooting_reward", 0.2)
+                reward += shooting_reward
+
+        if self.ship.vel.length() < 0.05:
+            reward += getattr(self, "idle_penalty", -0.03)
+            self.idle_steps += 1
+        else:
+            reward += getattr(self, "movement_reward", 0.08)
+
+        for b in self.bullets[:]:
+            b.update()
+            if b.off_screen():
+                self.bullets.remove(b)
+                continue
+            for a in self.asteroids[:]:
+                if a.get_rect().collidepoint(b.pos):
+                    self.bullets.remove(b)
+                    self.asteroids.remove(a)
+                    self.asteroids.extend(a.split())
+                    reward += getattr(self, "reward_per_hit", 40.0)
+                    self.hits_landed += 1
+                    break
+
+        ship_rect = self.ship.get_rect()
+        for a in self.asteroids:
+            if ship_rect.colliderect(a.get_rect()):
+                reward = getattr(self, "death_penalty", -15.0)
+                self.done = True
+                self.ship_deaths += 1
+                return reward, alignment_reward, shooting_reward
+
+        norm_x = self.ship.pos.x / self.WIDTH
+        norm_y = self.ship.pos.y / self.HEIGHT
+        edge_margin = 0.1
+        near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or norm_y < edge_margin or norm_y > 1 - edge_margin
+        if near_edge:
+            reward += getattr(self, "edge_penalty", -0.1)
+            self.edge_counter += 1
+        else:
+            self.edge_counter = 0
+
+        if self.edge_counter > 120:
+            reward += getattr(self, "edge_kill_penalty", -0.2)
+            self.done = True
+            return reward, alignment_reward, shooting_reward
+
+        center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
+        reward -= getattr(self, "center_penalty_scale", 0.05) * center_dist
+
+        if not shoot:
+            ship_dir = safe_normalize(self.ship.direction)
+            for asteroid in self.asteroids:
+                to_asteroid = safe_normalize(asteroid.pos - self.ship.pos)
+                angle = ship_dir.angle_to(to_asteroid)
+                if abs(angle) < 15:
+                    reward += getattr(self, "missed_shot_penalty", -0.1)
+                    break
+
+        if self.asteroids:
+            closest = min(self.asteroids, key=lambda a: self.ship.pos.distance_to(a.pos))
+            to_asteroid = safe_normalize(closest.pos - self.ship.pos)
+            ship_dir = safe_normalize(self.ship.direction)
+            angle = ship_dir.angle_to(to_asteroid)
+            if abs(angle) < 10:
+                alignment_reward = getattr(self, "alignment_reward_close", 0.5)
+            elif abs(angle) < 25:
+                alignment_reward = getattr(self, "alignment_reward_mid", 0.35)
+            reward += alignment_reward
+
+        self.step_counter += 1
+        if self.step_counter % 20 == 0:
+            reward += getattr(self, "survival_bonus", 0.05)
+
+        if len(self.action_history) == self.history_window:
+            most_common = max(set(self.action_history), key=self.action_history.count)
+            freq = self.action_history.count(most_common)
+            ratio = freq / self.history_window
+            if ratio >= getattr(self, "repetition_penalty_threshold", 0.91):
+                reward += getattr(self, "repetition_penalty", -0.05)
+
+        return reward, alignment_reward, shooting_reward
+
+    AsteroidsEnv._reward = custom_reward
+
+# --- Sample configs ---
+def sample_hyperparams(space, n):
+    keys = list(space.keys())
+    return [{k: random.choice(space[k]) for k in keys} for _ in range(n)]
+
+# --- Main execution ---
+os.makedirs("results_random", exist_ok=True)
+configs = sample_hyperparams(search_space, sample_configs)
 config_results = {}
 
-# --- Run loop ---
-for reward_hit in reward_per_hit_values:
-    for lr in lr_values:
-        label = f"hit{int(reward_hit)}_lr{lr}"
-        print(f"\n=== Running config: {label} ===")
+for idx, cfg in enumerate(configs):
+    patch_env(cfg)
+    label = f"cfg{idx}_" + "_".join(f"{k}={v}" for k, v in cfg.items())
+    print(f"\\n=== Running config {idx+1}/{sample_configs} ===\\n{label}")
+    all_rewards = []
 
-        # Patch reward value into the env
-        patch_env_reward(reward_hit)
+    for run in range(runs_per_config):
+        avg, _, rewards = train_agent(run_id=f"{label}_run{run}", episodes=episodes, lr=cfg["lr"])
+        all_rewards.append(rewards)
 
-        all_rewards = []
+    all_rewards = np.array(all_rewards)
+    config_results[label] = all_rewards
+    np.save(f"results_random/rewards_{label}.npy", all_rewards)
 
-        for run in range(runs_per_config):
-            print(f"  → Run {run + 1}/{runs_per_config}")
-            avg, _, rewards = train_agent(
-                run_id=f"{label}_run{run}",
-                episodes=episodes,
-                lr=lr
-            )
-            all_rewards.append(rewards)
+# --- Plotting ---
+fig, axs = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
-        all_rewards = np.array(all_rewards)
-        config_results[label] = all_rewards
-        np.save(f"results/rewards_{label}.npy", all_rewards)
+for i, (label, data) in enumerate(config_results.items()):
+    mean = np.mean(data, axis=0)
+    std = np.std(data, axis=0)
+    mean_smooth = smooth(mean)
+    axs[0].plot(mean_smooth, label=f"cfg{i}" if i < 10 else None)
+    axs[1].bar(f"cfg{i}", np.mean(data[:, -100:]), color='skyblue', edgecolor='black')
 
-# --- Smoothed Line Plots (Split by learning rate) ---
-fig, axs = plt.subplots(1, len(lr_values), figsize=(6 * len(lr_values), 5), sharey=True)
-if len(lr_values) == 1:
-    axs = [axs]
-colors = ['blue', 'green', 'red']
+axs[0].set_title("Smoothed Reward Curves")
+axs[0].set_xlabel("Episode")
+axs[0].set_ylabel("Reward")
+axs[0].legend(fontsize=8)
+axs[0].grid(True)
 
-for i, lr in enumerate(lr_values):
-    ax = axs[i]
-    ax.set_title(f"Learning Rate: {lr}")
-    ax.set_xlabel("Episode")
-    ax.set_ylabel("Reward")
-    ax.grid(True)
+axs[1].set_title("Final 100-Episode Average Reward")
+axs[1].set_ylabel("Average Reward")
+axs[1].tick_params(axis='x', rotation=90)
+axs[1].grid(True)
 
-    for j, reward_hit in enumerate(reward_per_hit_values):
-        label = f"hit{int(reward_hit)}_lr{lr}"
-        data = config_results[label]
-        mean = np.mean(data, axis=0)
-        std = np.std(data, axis=0)
-        mean_smooth = smooth(mean)
-
-        ax.plot(mean_smooth, label=f"Hit {int(reward_hit)}", color=colors[j])
-        ax.fill_between(range(len(mean)), mean - std, mean + std, alpha=0.2, color=colors[j])
-
-    ax.legend()
-
-plt.suptitle("Sensitivity Analysis: Reward per Hit vs Learning Rate")
 plt.tight_layout()
-plt.savefig("results/sensitivity_split_plot.png")
-plt.show()
-
-# --- Final Performance Bar Chart ---
-final_scores = []
-final_labels = []
-
-for reward_hit in reward_per_hit_values:
-    for lr in lr_values:
-        label = f"hit{int(reward_hit)}_lr{lr}"
-        data = config_results[label]
-        avg_final_reward = np.mean(data[:, -200:])  # average over last 200 episodes
-        final_scores.append(avg_final_reward)
-        final_labels.append(label)
-
-plt.figure(figsize=(10, 5))
-bars = plt.bar(final_labels, final_scores, color='skyblue', edgecolor='black')
-plt.xticks(rotation=45)
-plt.ylabel("Average Reward (Last 200 Episodes)")
-plt.title("Final Performance Comparison")
-plt.grid(axis='y')
-plt.tight_layout()
-plt.savefig("results/final_comparison.png")
+plt.savefig("results_random/random_search_summary.png")
 plt.show()
