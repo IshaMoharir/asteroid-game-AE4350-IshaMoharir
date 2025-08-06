@@ -2,9 +2,13 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+import pygame
+import json
+
 from rl.env import AsteroidsEnv
 from rl.train import train_agent
 from game.bullet import Bullet
+from game.config import SHIP_RADIUS, WIDTH, HEIGHT
 
 # --- Search Space (All rewards/penalties + lr) ---
 search_space = {
@@ -27,7 +31,7 @@ search_space = {
 
 # --- Config ---
 sample_configs = 10
-runs_per_config = 2
+runs_per_config = 3
 episodes = 1000
 
 # --- Smoothing helper ---
@@ -78,7 +82,8 @@ def patch_env(cfg):
                     self.hits_landed += 1
                     break
 
-        ship_rect = self.ship.get_rect()
+        ship_rect = pygame.Rect(self.ship.pos.x - SHIP_RADIUS, self.ship.pos.y - SHIP_RADIUS,
+                                SHIP_RADIUS * 2, SHIP_RADIUS * 2)
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
                 reward = getattr(self, "death_penalty", -15.0)
@@ -86,8 +91,8 @@ def patch_env(cfg):
                 self.ship_deaths += 1
                 return reward, alignment_reward, shooting_reward
 
-        norm_x = self.ship.pos.x / self.WIDTH
-        norm_y = self.ship.pos.y / self.HEIGHT
+        norm_x = self.ship.pos.x / WIDTH
+        norm_y = self.ship.pos.y / HEIGHT
         edge_margin = 0.1
         near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or norm_y < edge_margin or norm_y > 1 - edge_margin
         if near_edge:
@@ -148,30 +153,43 @@ def sample_hyperparams(space, n):
 os.makedirs("results_random", exist_ok=True)
 configs = sample_hyperparams(search_space, sample_configs)
 config_results = {}
+label_map = {}
 
 for idx, cfg in enumerate(configs):
     patch_env(cfg)
-    label = f"cfg{idx}_" + "_".join(f"{k}={v}" for k, v in cfg.items())
-    print(f"\\n=== Running config {idx+1}/{sample_configs} ===\\n{label}")
-    all_rewards = []
 
+    short_cfg = f"cfg{idx}"
+    full_label = f"{short_cfg}_" + "_".join(f"{k}={v}" for k, v in cfg.items())
+    label_map[short_cfg] = full_label
+
+    print(f"\n📦 Config {idx}")
+    for k, v in cfg.items():
+        print(f"{k:<25} = {v}")
+    print("─" * 55)
+
+    all_rewards = []
     for run in range(runs_per_config):
-        avg, _, rewards = train_agent(run_id=f"{label}_run{run}", episodes=episodes, lr=cfg["lr"])
+        run_id = f"{short_cfg}_run{run}"
+        avg, _, rewards = train_agent(run_id=run_id, episodes=episodes, lr=cfg["lr"])
         all_rewards.append(rewards)
 
     all_rewards = np.array(all_rewards)
-    config_results[label] = all_rewards
-    np.save(f"results_random/rewards_{label}.npy", all_rewards)
+    config_results[short_cfg] = all_rewards
+    np.save(f"results_random/rewards_{short_cfg}.npy", all_rewards)
+
+# Save short ↔ full label mapping
+with open("results_random/config_label_map.json", "w") as f:
+    json.dump(label_map, f, indent=2)
 
 # --- Plotting ---
 fig, axs = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
-for i, (label, data) in enumerate(config_results.items()):
+for i, (short_cfg, data) in enumerate(config_results.items()):
     mean = np.mean(data, axis=0)
     std = np.std(data, axis=0)
     mean_smooth = smooth(mean)
-    axs[0].plot(mean_smooth, label=f"cfg{i}" if i < 10 else None)
-    axs[1].bar(f"cfg{i}", np.mean(data[:, -100:]), color='skyblue', edgecolor='black')
+    axs[0].plot(mean_smooth, label=short_cfg if i < 10 else None)
+    axs[1].bar(short_cfg, np.mean(data[:, -100:]), color='skyblue', edgecolor='black')
 
 axs[0].set_title("Smoothed Reward Curves")
 axs[0].set_xlabel("Episode")
