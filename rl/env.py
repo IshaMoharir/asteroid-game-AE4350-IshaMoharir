@@ -9,7 +9,7 @@ from game.config import *
 
 class AsteroidsEnv(gym.Env):
     """Custom Gym environment for the Asteroids game."""
-    def __init__(self, render_mode=False, reward_per_hit=30.0):
+    def __init__(self, render_mode=False, reward_per_hit=40.0):
         self.render_mode = render_mode
         self.action_history = []
         self.history_window = 30
