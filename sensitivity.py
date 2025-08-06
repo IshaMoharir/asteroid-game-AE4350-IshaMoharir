@@ -8,7 +8,7 @@ from rl.train import train_agent
 # --- Parameters to sweep ---
 reward_per_hit_values = [20.0, 30.0, 40.0]
 lr_values = [1e-4, 5e-4, 1e-3]
-episodes = 5000
+episodes = 100
 runs_per_config = 3
 
 # --- Smoothing helper ---
@@ -58,7 +58,9 @@ for reward_hit in reward_per_hit_values:
         np.save(f"results/rewards_{label}.npy", all_rewards)
 
 # --- Smoothed Line Plots (Split by learning rate) ---
-fig, axs = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+fig, axs = plt.subplots(1, len(lr_values), figsize=(6 * len(lr_values), 5), sharey=True)
+if len(lr_values) == 1:
+    axs = [axs]
 colors = ['blue', 'green', 'red']
 
 for i, lr in enumerate(lr_values):
