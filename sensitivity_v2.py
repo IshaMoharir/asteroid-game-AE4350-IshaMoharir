@@ -21,7 +21,7 @@ BASE_SEED = 12345
 
 # Training budget
 EPISODES_BASELINE = 2000      # do a bit more here to stabilise threshold
-EPISODES_MAIN = 500          # used for LR sweep and reward sensitivity
+EPISODES_MAIN = 500           # used for LR sweep and reward sensitivity
 SEEDS_PER_SETTING = 3         # >=5 strongly recommended
 
 # Moving-average window for reporting
@@ -75,7 +75,7 @@ def set_all_seeds(seed):
         pass
 
 # -----------------------------
-# Reward patching (like your v1)
+# Reward patching
 # -----------------------------
 def patch_env(cfg):
     original_init = AsteroidsEnv.__init__
@@ -248,6 +248,10 @@ def run_setting(label, cfg_patch, lr, episodes, seeds, outdir, per_seed_files=No
     """
     os.makedirs(outdir, exist_ok=True)
     patch_env(cfg_patch)
+
+    # Ensure per_seed_files is a list we can append to
+    if per_seed_files is None:
+        per_seed_files = []
 
     all_rewards = []  # keep as plain Python list until we know min length
 
@@ -436,8 +440,6 @@ def stage_reward_sensitivity(best_lr, threshold):
     os.makedirs(outdir, exist_ok=True)
 
     rows = []
-    labels = []
-    auc_effects = []
 
     # Baseline at best LR for comparator
     base_label = "baseline_at_bestlr"
@@ -481,9 +483,7 @@ def stage_reward_sensitivity(best_lr, threshold):
             w.writerow(r)
 
     # Tornado-style effect (ΔAUC vs baseline_at_bestlr)
-    effects = {}
-    for term in REWARD_TERMS_TO_SCALE:
-        effects[term] = {"low": None, "high": None}
+    effects = {t: {"low": None, "high": None} for t in REWARD_TERMS_TO_SCALE}
 
     for r in rows:
         term = r["term"]
