@@ -6,7 +6,9 @@ import numpy as np
 from rl.env import AsteroidsEnv
 from rl.dqn_agent import DQNAgent
 
-# ------ Training Loop for a Single Run ------
+# ============================================================
+# Training loop for a single run
+# ============================================================
 def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
     # --- Environment and Agent Setup ---
     os.makedirs("models", exist_ok=True)
@@ -23,6 +25,7 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
     moving_avg_window = 100
     episode_durations = []
 
+    # Cumulative metrics over episodes (reset every print interval)
     metric_sums = {
         "bullets_fired": 0,
         "hits_landed": 0,
@@ -34,7 +37,9 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
 
     global_start = time.time()
 
-    # --- Episode Loop ---
+    # ============================================================
+    # Episode Loop
+    # ============================================================
     for ep in range(episodes):
         state = env.reset()
         total_reward = 0
@@ -64,6 +69,7 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
         alignment_rewards.append(info.get("alignment_reward", 0))
         shooting_rewards.append(info.get("shooting_reward", 0))
 
+        # Accumulate episode metrics
         for key in metric_sums:
             if key in info:
                 metric_sums[key] += info[key]
@@ -83,25 +89,33 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
         avg_ep_time = sum(episode_durations) / len(episode_durations)
         remaining = (episodes - (ep + 1)) * avg_ep_time
 
-        # --- Print Stats Every 100 Episodes ---
+        # --- Print Stats (every 1000 episodes and at first episode) ---
         if (ep + 1) % 1000 == 0 or ep == 0:
             avg_metrics = {k: v / 10 for k, v in metric_sums.items()}
-            print(f"\n[Run {run_id}] Episode {ep + 1}/{episodes} | Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
-            print(f"  🔫 Bullets: {avg_metrics['bullets_fired']:.1f} | 🎯 Hits: {avg_metrics['hits_landed']:.1f} | "
-                  f"🛑 Idle: {avg_metrics['idle_steps']:.1f} | 💥 Deaths: {avg_metrics['ship_deaths']:.1f}")
-            print(f"  🎯 Alignment reward: {avg_metrics['alignment_reward']:.2f} | 🔫 Shooting reward: {avg_metrics['shooting_reward']:.2f}")
-            print(f"  🎮 Action counts: {action_counts}")
-            print(f"  ⏱️ ETA: {remaining:.1f}s (~{remaining / 60:.1f} min)")
+            print(f"\n[Run {run_id}] Episode {ep + 1}/{episodes} | "
+                  f"Reward = {total_reward:.2f} | Epsilon = {agent.epsilon:.3f}")
+            print(f"  Bullets fired: {avg_metrics['bullets_fired']:.1f} | "
+                  f"Hits landed: {avg_metrics['hits_landed']:.1f} | "
+                  f"Idle steps: {avg_metrics['idle_steps']:.1f} | "
+                  f"Ship deaths: {avg_metrics['ship_deaths']:.1f}")
+            print(f"  Alignment reward: {avg_metrics['alignment_reward']:.2f} | "
+                  f"Shooting reward: {avg_metrics['shooting_reward']:.2f}")
+            print(f"  Action counts: {action_counts}")
+            print(f"  ETA: {remaining:.1f}s (~{remaining / 60:.1f} min)")
             print("---------------------------------------------------------")
+
+            # Reset cumulative metrics
             for key in metric_sums:
                 metric_sums[key] = 0
 
-    # ------ Save Model and Reward Logs ------
+    # ============================================================
+    # Save Models and Reward Logs
+    # ============================================================
     torch.save(agent.model.state_dict(), f"models/final_model_run{run_id}.pth")
     np.save(f"models/alignment_rewards_run{run_id}.npy", alignment_rewards)
     np.save(f"models/shooting_rewards_run{run_id}.npy", shooting_rewards)
 
-    # ------ Plot Reward Curve ------
+    # --- Plot Reward Curve ---
     plt.figure(figsize=(10, 5))
     plt.plot(all_rewards, label="Total reward per episode")
     if len(all_rewards) >= moving_avg_window:
@@ -116,13 +130,17 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
     plt.savefig(f"models/training_curve_run{run_id}.png")
     plt.close()
 
+    # --- Final Run Summary ---
     total_time = time.time() - global_start
-    print(f"\n✅ Run {run_id} complete | Best avg reward = {best_avg_reward:.2f} | Time: {total_time/60:.1f} min")
+    print(f"\nRun {run_id} complete | Best avg reward = {best_avg_reward:.2f} "
+          f"| Total time: {total_time/60:.1f} min")
 
     return best_avg_reward, f"models/best_model_run{run_id}.pth", all_rewards
 
 
-# ------ Main: Run Multiple Training Sessions ------
+# ============================================================
+# Main: run multiple training sessions for evaluation
+# ============================================================
 if __name__ == "__main__":
     os.makedirs("models", exist_ok=True)
     results = []
@@ -146,7 +164,7 @@ if __name__ == "__main__":
     with open("models/best_model_path.txt", "w") as f:
         f.write(f"rl/{best[1]}")
 
-    # --- Plot Average Reward Curve ---
+    # --- Plot Average Reward Curve Across Runs ---
     plt.figure(figsize=(10, 5))
     plt.plot(mean_per_ep, label="Mean reward per episode")
     plt.fill_between(range(len(mean_per_ep)),
