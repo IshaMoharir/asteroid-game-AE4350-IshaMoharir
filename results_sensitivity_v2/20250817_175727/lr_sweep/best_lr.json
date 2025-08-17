@@ -1,0 +1,14 @@
+{
+  "label": "lr_0.0005",
+  "lr": 0.0005,
+  "episodes": 500,
+  "auc_mavg": 108334.97815731092,
+  "final100_mean": 236.71794799313756,
+  "final100_std": 17.44337476561893,
+  "per_seed_files": [
+    "results_sensitivity_v2/20250817_175727/lr_sweep/rewards_lr_0.0005_seed12345.npy",
+    "results_sensitivity_v2/20250817_175727/lr_sweep/rewards_lr_0.0005_seed12346.npy",
+    "results_sensitivity_v2/20250817_175727/lr_sweep/rewards_lr_0.0005_seed12347.npy"
+  ],
+  "episodes_to_threshold": 100.0
+}

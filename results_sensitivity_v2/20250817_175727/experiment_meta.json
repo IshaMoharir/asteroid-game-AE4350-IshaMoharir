@@ -1,0 +1,9 @@
+{
+  "root": "results_sensitivity_v2/20250817_175727",
+  "episodes_baseline": 2000,
+  "episodes_main": 500,
+  "seeds_per_setting": 3,
+  "rolling_window": 100,
+  "chosen_best_lr_from_sweep": 0.0005,
+  "note": "All runs used train_agent API unchanged; env reward terms patched at runtime."
+}

@@ -1,0 +1,17 @@
+{
+  "metrics": {
+    "label": "baseline",
+    "lr": 0.001,
+    "episodes": 2000,
+    "auc_mavg": 334838.699714624,
+    "final100_mean": 133.56652891687804,
+    "final100_std": 13.733964080237724,
+    "per_seed_files": [
+      "results_sensitivity_v2/20250817_175727/baseline/rewards_baseline_seed12345.npy",
+      "results_sensitivity_v2/20250817_175727/baseline/rewards_baseline_seed12346.npy",
+      "results_sensitivity_v2/20250817_175727/baseline/rewards_baseline_seed12347.npy"
+    ]
+  },
+  "threshold": 142.92262881936742,
+  "rolling_window": 100
+}
