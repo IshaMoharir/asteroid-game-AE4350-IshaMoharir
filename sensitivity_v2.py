@@ -16,18 +16,12 @@ from game.config import SHIP_RADIUS, WIDTH, HEIGHT
 # -----------------------------
 # Global experiment settings
 # -----------------------------
-# Reproducibility: per-run seeds will be derived from BASE_SEED
 BASE_SEED = 12345
-
-# Training budget
 EPISODES_BASELINE = 2000      # do a bit more here to stabilise threshold
 EPISODES_MAIN = 500           # used for LR sweep and reward sensitivity
 SEEDS_PER_SETTING = 3         # >=5 strongly recommended
-
-# Moving-average window for reporting
 ROLLING_WINDOW = 100
 
-# Directory for results (timestamped to avoid clobbering)
 STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 ROOT = os.path.join("results_sensitivity_v2", STAMP)
 os.makedirs(ROOT, exist_ok=True)
@@ -41,10 +35,10 @@ def moving_average(x, w):
     return np.convolve(x, np.ones(w)/w, mode="valid")
 
 def auc_of_curve(y):
-    # Trapezoidal AUC; assumes uniform episode spacing
+    # Use numpy's non-deprecated trapezoidal rule
     if len(y) < 2:
         return float(y[-1]) if len(y) else 0.0
-    return float(np.trapz(y, dx=1.0))
+    return float(np.trapezoid(y, dx=1.0))
 
 def final_mean(y, tail=100):
     if len(y) == 0:
@@ -52,14 +46,10 @@ def final_mean(y, tail=100):
     return float(np.mean(y[-tail:]))
 
 def episodes_to_threshold(y, threshold, window=ROLLING_WINDOW):
-    """
-    Return the first episode index (1-based) at which the rolling mean >= threshold.
-    Returns np.inf if never reached.
-    """
     roll = moving_average(y, window)
     for i, v in enumerate(roll):
         if v >= threshold:
-            # map rolling index back to episode number: the windowed mean ending at i+window
+            # index in original episode space: windowed mean ends at i+window
             return i + window
     return math.inf
 
@@ -75,7 +65,7 @@ def set_all_seeds(seed):
         pass
 
 # -----------------------------
-# Reward patching
+# Reward patching (like your v1)
 # -----------------------------
 def patch_env(cfg):
     original_init = AsteroidsEnv.__init__
@@ -84,7 +74,6 @@ def patch_env(cfg):
         original_init(self, render_mode=render_mode)
         for k, v in cfg.items():
             setattr(self, k, v)
-
     AsteroidsEnv.__init__ = new_init
 
     def safe_normalize(v):
@@ -100,7 +89,6 @@ def patch_env(cfg):
         alignment_reward = 0
         shooting_reward = 0
 
-        # Shooting action
         if shoot:
             if len(self.bullets) < 5:
                 self.bullets.append(Bullet(self.ship.pos, self.ship.direction))
@@ -108,14 +96,12 @@ def patch_env(cfg):
                 shooting_reward = getattr(self, "shooting_reward", 0.2)
                 reward += shooting_reward
 
-        # Idle vs move
         if self.ship.vel.length() < 0.05:
             reward += getattr(self, "idle_penalty", -0.03)
             self.idle_steps += 1
         else:
             reward += getattr(self, "movement_reward", 0.08)
 
-        # Bullet-asteroid collisions
         for b in self.bullets[:]:
             b.update()
             if b.off_screen():
@@ -130,7 +116,6 @@ def patch_env(cfg):
                     self.hits_landed += 1
                     break
 
-        # Ship-asteroid collision (death)
         ship_rect = pygame.Rect(
             self.ship.pos.x - SHIP_RADIUS, self.ship.pos.y - SHIP_RADIUS,
             SHIP_RADIUS * 2, SHIP_RADIUS * 2
@@ -142,7 +127,6 @@ def patch_env(cfg):
                 self.ship_deaths += 1
                 return reward, alignment_reward, shooting_reward
 
-        # Edge penalty
         norm_x = self.ship.pos.x / WIDTH
         norm_y = self.ship.pos.y / HEIGHT
         edge_margin = 0.1
@@ -161,11 +145,9 @@ def patch_env(cfg):
             self.done = True
             return reward, alignment_reward, shooting_reward
 
-        # Gentle center pull
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
         reward -= getattr(self, "center_penalty_scale", 0.05) * center_dist
 
-        # Missed-shot penalty: if aligned but not shooting
         if not shoot:
             ship_dir = _safe_normalize(self.ship.direction)
             for asteroid in self.asteroids:
@@ -175,7 +157,6 @@ def patch_env(cfg):
                     reward += getattr(self, "missed_shot_penalty", -0.1)
                     break
 
-        # Alignment reward for closest asteroid
         if self.asteroids:
             closest = min(self.asteroids, key=lambda a: self.ship.pos.distance_to(a.pos))
             to_asteroid = _safe_normalize(closest.pos - self.ship.pos)
@@ -187,12 +168,10 @@ def patch_env(cfg):
                 alignment_reward = getattr(self, "alignment_reward_mid", 0.35)
             reward += alignment_reward
 
-        # Survival bonus every N steps
         self.step_counter += 1
         if self.step_counter % 20 == 0:
             reward += getattr(self, "survival_bonus", 0.05)
 
-        # Repetition penalty
         if len(self.action_history) == self.history_window:
             most_common = max(set(self.action_history), key=self.action_history.count)
             freq = self.action_history.count(most_common)
@@ -207,7 +186,6 @@ def patch_env(cfg):
 # -----------------------------
 # Experiment definitions
 # -----------------------------
-# Baseline config (≈ your cfg3 style)
 BASELINE_CFG = {
     "reward_per_hit": 50.0,
     "shooting_reward": 0.3,
@@ -225,10 +203,8 @@ BASELINE_CFG = {
     "repetition_penalty_threshold": 0.85,
 }
 
-# Sweep lists
 LR_SWEEP = [1e-5, 5e-5, 1e-4, 5e-4, 1e-3]
 
-# Reward terms to scale (local sensitivity): each will be tested at ×0.5 and ×1.5
 REWARD_TERMS_TO_SCALE = [
     "reward_per_hit",
     "idle_penalty",
@@ -243,17 +219,13 @@ REWARD_TERMS_TO_SCALE = [
 # Core runners
 # -----------------------------
 def run_setting(label, cfg_patch, lr, episodes, seeds, outdir, per_seed_files=None):
-    """
-    Run a (cfg_patch, lr) with multiple seeds; return dict with metrics + save raw curves.
-    """
     os.makedirs(outdir, exist_ok=True)
     patch_env(cfg_patch)
 
-    # Ensure per_seed_files is a list we can append to
     if per_seed_files is None:
         per_seed_files = []
 
-    all_rewards = []  # keep as plain Python list until we know min length
+    all_rewards = []
 
     for sidx in range(seeds):
         seed = BASE_SEED + sidx
@@ -261,7 +233,6 @@ def run_setting(label, cfg_patch, lr, episodes, seeds, outdir, per_seed_files=No
         run_id = f"{label}_seed{seed}"
 
         avg, _, rewards = train_agent(run_id=run_id, episodes=episodes, lr=lr)
-        # Ensure each run is a numeric NumPy array
         rewards = np.asarray(rewards, dtype=np.float64)
         all_rewards.append(rewards)
 
@@ -269,14 +240,12 @@ def run_setting(label, cfg_patch, lr, episodes, seeds, outdir, per_seed_files=No
         np.save(npy_path, rewards)
         per_seed_files.append(npy_path)
 
-    # Align by min length, then force a real float array (not object)
     min_len = min(len(r) for r in all_rewards)
-    aligned = np.stack([r[:min_len] for r in all_rewards], axis=0).astype(np.float64)  # [seeds, episodes]
+    aligned = np.stack([r[:min_len] for r in all_rewards], axis=0).astype(np.float64)
 
     mean_curve = aligned.mean(axis=0)
-    std_curve = aligned.std(axis=0)  # now dtype is float64, so this is safe
+    std_curve = aligned.std(axis=0)
 
-    # Metrics
     roll = moving_average(mean_curve, ROLLING_WINDOW)
     metrics = {
         "label": label,
@@ -290,9 +259,16 @@ def run_setting(label, cfg_patch, lr, episodes, seeds, outdir, per_seed_files=No
     return metrics, mean_curve, std_curve
 
 def plot_mean_with_shaded_std(ax, mean_curve, std_curve, title):
+    # Raw mean/std shading over full episode axis
     x = np.arange(len(mean_curve))
-    ax.plot(x, moving_average(mean_curve, ROLLING_WINDOW), label="Mean (rolling)")
     ax.fill_between(x, mean_curve - std_curve, mean_curve + std_curve, alpha=0.2, label="±1 std")
+    ax.plot(x, mean_curve, alpha=0.4, label="Mean")
+
+    # Rolling mean is shorter; shift x so it ends at the correct episode index
+    ma = moving_average(mean_curve, ROLLING_WINDOW)
+    x_ma = np.arange(len(ma)) + (ROLLING_WINDOW - 1)
+    ax.plot(x_ma, ma, label=f"Rolling mean (win={ROLLING_WINDOW})")
+
     ax.set_title(title)
     ax.set_xlabel("Episode")
     ax.set_ylabel("Reward")
@@ -308,28 +284,17 @@ def stage_baseline():
         label, BASELINE_CFG, lr=1e-3, episodes=EPISODES_BASELINE, seeds=SEEDS_PER_SETTING, outdir=outdir
     )
 
-    # Threshold = median of baseline final-100 rolling mean (per-seed)
-    # Recompute per-seed rolling final to calculate threshold robustly
     per_seed_last_ma = []
     for f in metrics["per_seed_files"]:
         r = np.load(f)
         ma = moving_average(r, ROLLING_WINDOW)
-        if len(ma) == 0:
-            per_seed_last_ma.append(0.0)
-        else:
-            per_seed_last_ma.append(np.mean(ma[-min(100, len(ma)):]))
+        per_seed_last_ma.append(np.mean(ma[-min(100, len(ma)):]) if len(ma) else 0.0)
     threshold = float(np.median(per_seed_last_ma))
 
-    # Save baseline summary and threshold
-    baseline_summary = {
-        "metrics": metrics,
-        "threshold": threshold,
-        "rolling_window": ROLLING_WINDOW,
-    }
+    baseline_summary = {"metrics": metrics, "threshold": threshold, "rolling_window": ROLLING_WINDOW}
     with open(os.path.join(outdir, "baseline_summary.json"), "w") as f:
         json.dump(baseline_summary, f, indent=2)
 
-    # Plot
     fig, ax = plt.subplots(figsize=(8, 5))
     plot_mean_with_shaded_std(ax, mean_curve, std_curve, "Baseline: mean ± std")
     ax.axhline(threshold, linestyle="--", alpha=0.7, label=f"Threshold={threshold:.1f}")
@@ -357,7 +322,6 @@ def stage_lr_sweep(threshold):
             label, BASELINE_CFG, lr=lr, episodes=EPISODES_MAIN, seeds=SEEDS_PER_SETTING, outdir=outdir
         )
 
-        # Episodes to threshold (from mean curve)
         ett = episodes_to_threshold(mean_curve, threshold, window=ROLLING_WINDOW)
         metrics["episodes_to_threshold"] = float(ett if np.isfinite(ett) else np.inf)
 
@@ -365,7 +329,7 @@ def stage_lr_sweep(threshold):
         all_means[label] = mean_curve
         all_stds[label] = std_curve
 
-    # Save CSV
+    # CSV
     import csv
     csv_path = os.path.join(outdir, "summary_lr.csv")
     with open(csv_path, "w", newline="") as f:
@@ -377,11 +341,12 @@ def stage_lr_sweep(threshold):
         for r in rows:
             w.writerow(r)
 
-    # Plots: mean ± std, final box, AUC bars
-    # 1) Overlay curves
+    # Overlay curves (use aligned x for rolling mean)
     fig, ax = plt.subplots(figsize=(9, 6))
     for label, mean_curve in all_means.items():
-        ax.plot(moving_average(mean_curve, ROLLING_WINDOW), label=label)
+        ma = moving_average(mean_curve, ROLLING_WINDOW)
+        x_ma = np.arange(len(ma)) + (ROLLING_WINDOW - 1)
+        ax.plot(x_ma, ma, label=label)
     ax.axhline(threshold, linestyle="--", alpha=0.7, label="threshold")
     ax.set_title("LR sweep – rolling mean reward")
     ax.set_xlabel("Episode")
@@ -392,7 +357,7 @@ def stage_lr_sweep(threshold):
     fig.savefig(os.path.join(outdir, "lr_curves.png"), dpi=150)
     plt.close(fig)
 
-    # 2) Final 100-episode boxplot (per seed)
+    # Final-100 boxplot (per seed)
     per_setting_final_lists = []
     labels = []
     for r in rows:
@@ -412,7 +377,7 @@ def stage_lr_sweep(threshold):
     fig.savefig(os.path.join(outdir, "lr_final_boxplot.png"), dpi=150)
     plt.close(fig)
 
-    # 3) AUC bars
+    # AUC bars
     fig, ax = plt.subplots(figsize=(9, 5))
     aucs = [r["auc_mavg"] for r in rows]
     ax.bar(labels, aucs)
@@ -424,7 +389,6 @@ def stage_lr_sweep(threshold):
     fig.savefig(os.path.join(outdir, "lr_auc_bars.png"), dpi=150)
     plt.close(fig)
 
-    # Determine best LR by AUC (tie-breaker: lower final100_std)
     rows_sorted = sorted(rows, key=lambda r: (-r["auc_mavg"], r["final100_std"]))
     best = rows_sorted[0]
     with open(os.path.join(outdir, "best_lr.json"), "w") as f:
@@ -441,14 +405,12 @@ def stage_reward_sensitivity(best_lr, threshold):
 
     rows = []
 
-    # Baseline at best LR for comparator
     base_label = "baseline_at_bestlr"
     base_metrics, base_mean, _ = run_setting(
         base_label, BASELINE_CFG, lr=best_lr, episodes=EPISODES_MAIN, seeds=SEEDS_PER_SETTING, outdir=outdir
     )
     base_auc = base_metrics["auc_mavg"]
 
-    # For each reward term: run x0.5 and x1.5
     for term in REWARD_TERMS_TO_SCALE:
         base_val = BASELINE_CFG[term]
         for factor in [0.5, 1.5]:
@@ -459,7 +421,6 @@ def stage_reward_sensitivity(best_lr, threshold):
                 label, cfg, lr=best_lr, episodes=EPISODES_MAIN, seeds=SEEDS_PER_SETTING, outdir=outdir
             )
 
-            # Episodes-to-threshold for reporting
             ett = episodes_to_threshold(mean_curve, threshold, window=ROLLING_WINDOW)
             metrics["episodes_to_threshold"] = float(ett if np.isfinite(ett) else np.inf)
 
@@ -470,7 +431,6 @@ def stage_reward_sensitivity(best_lr, threshold):
                 **metrics
             })
 
-    # Save CSV
     import csv
     csv_path = os.path.join(outdir, "summary_rewards.csv")
     with open(csv_path, "w", newline="") as f:
@@ -482,9 +442,7 @@ def stage_reward_sensitivity(best_lr, threshold):
         for r in rows:
             w.writerow(r)
 
-    # Tornado-style effect (ΔAUC vs baseline_at_bestlr)
     effects = {t: {"low": None, "high": None} for t in REWARD_TERMS_TO_SCALE}
-
     for r in rows:
         term = r["term"]
         factor = r["factor"]
@@ -494,13 +452,11 @@ def stage_reward_sensitivity(best_lr, threshold):
         else:
             effects[term]["high"] = delta
 
-    # Sort by max absolute effect
     order = sorted(
         REWARD_TERMS_TO_SCALE,
         key=lambda t: -max(abs(effects[t]["low"] or 0), abs(effects[t]["high"] or 0))
     )
 
-    # Plot tornado (horizontal bars: low and high)
     fig, ax = plt.subplots(figsize=(8, 6))
     y_pos = np.arange(len(order))
     lows = [effects[t]["low"] if effects[t]["low"] is not None else 0 for t in order]
@@ -523,16 +479,10 @@ def stage_reward_sensitivity(best_lr, threshold):
 # Main
 # -----------------------------
 def main():
-    # Stage A: Baseline to set threshold
     threshold = stage_baseline()
-
-    # Stage B: LR sweep using baseline rewards
     best_lr = stage_lr_sweep(threshold)
-
-    # Stage C: Local reward sensitivity at best LR
     stage_reward_sensitivity(best_lr, threshold)
 
-    # Write top-level README-ish metadata
     meta = {
         "root": ROOT,
         "episodes_baseline": EPISODES_BASELINE,
