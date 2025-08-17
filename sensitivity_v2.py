@@ -242,15 +242,14 @@ REWARD_TERMS_TO_SCALE = [
 # -----------------------------
 # Core runners
 # -----------------------------
-def run_setting(label, cfg_patch, lr, episodes, seeds, outdir):
+def run_setting(label, cfg_patch, lr, episodes, seeds, outdir, per_seed_files=None):
     """
     Run a (cfg_patch, lr) with multiple seeds; return dict with metrics + save raw curves.
     """
     os.makedirs(outdir, exist_ok=True)
     patch_env(cfg_patch)
 
-    all_rewards = []
-    per_seed_files = []
+    all_rewards = []  # keep as plain Python list until we know min length
 
     for sidx in range(seeds):
         seed = BASE_SEED + sidx
@@ -258,20 +257,20 @@ def run_setting(label, cfg_patch, lr, episodes, seeds, outdir):
         run_id = f"{label}_seed{seed}"
 
         avg, _, rewards = train_agent(run_id=run_id, episodes=episodes, lr=lr)
-        rewards = np.asarray(rewards, dtype=float)
+        # Ensure each run is a numeric NumPy array
+        rewards = np.asarray(rewards, dtype=np.float64)
         all_rewards.append(rewards)
 
         npy_path = os.path.join(outdir, f"rewards_{label}_seed{seed}.npy")
         np.save(npy_path, rewards)
         per_seed_files.append(npy_path)
 
-    all_rewards = np.array(all_rewards, dtype=object)  # ragged-safe
-    # For metrics, align by min length across seeds to avoid ragged issues
+    # Align by min length, then force a real float array (not object)
     min_len = min(len(r) for r in all_rewards)
-    aligned = np.stack([r[:min_len] for r in all_rewards], axis=0)  # [seeds, episodes]
+    aligned = np.stack([r[:min_len] for r in all_rewards], axis=0).astype(np.float64)  # [seeds, episodes]
 
     mean_curve = aligned.mean(axis=0)
-    std_curve = aligned.std(axis=0)
+    std_curve = aligned.std(axis=0)  # now dtype is float64, so this is safe
 
     # Metrics
     roll = moving_average(mean_curve, ROLLING_WINDOW)
