@@ -49,7 +49,17 @@ asteroid-game-AE4350/
 ├── .gitignore
 └── README.md                  # This file
 ```
+## Software Structure and Modularity
 
+The project is organised in a modular fashion to ensure reproducibility and extensibility:
+- **`ship.py`, `asteroid.py`, `bullet.py`**: define object behaviours and game physics  
+- **`config.py`**: centralises constants for physics, rendering, and reward shaping  
+- **`env.py`**: implements the Gym-compatible Asteroids environment  
+- **`dqn_agent.py`**: defines the neural network, replay buffer, and training logic  
+- **`train.py`**: runs the main training loop, handles target updates and checkpointing  
+- **`run_rl.py`**: evaluates trained agents in the visual (pygame) environment  
+
+This modular design makes it easy to modify components independently, experiment with different learning algorithms, or adjust training configurations without breaking the overall pipeline.
 
 ## Notes
 
