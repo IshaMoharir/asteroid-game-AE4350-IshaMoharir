@@ -6,10 +6,22 @@ import numpy as np
 from rl.env import AsteroidsEnv
 from rl.dqn_agent import DQNAgent
 
-# ============================================================
-# Training loop for a single run
-# ============================================================
+# -----------------------------
+# Training: Single Run
+# -----------------------------
 def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
+    """
+    Train a DQN agent for a single run.
+
+    Args:
+        run_id (int/str): Identifier for saving artifacts.
+        episodes (int): Number of training episodes.
+        max_steps (int): Max steps per episode.
+        lr (float): Learning rate for the agent.
+
+    Returns:
+        tuple: (best_avg_reward, best_model_path, all_rewards)
+    """
     # --- Environment and Agent Setup ---
     os.makedirs("models", exist_ok=True)
     env = AsteroidsEnv(render_mode=False)
@@ -37,9 +49,9 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
 
     global_start = time.time()
 
-    # ============================================================
+    # -----------------------------
     # Episode Loop
-    # ============================================================
+    # -----------------------------
     for ep in range(episodes):
         state = env.reset()
         total_reward = 0
@@ -108,9 +120,9 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
             for key in metric_sums:
                 metric_sums[key] = 0
 
-    # ============================================================
+    # -----------------------------
     # Save Models and Reward Logs
-    # ============================================================
+    # -----------------------------
     torch.save(agent.model.state_dict(), f"models/final_model_run{run_id}.pth")
     np.save(f"models/alignment_rewards_run{run_id}.npy", alignment_rewards)
     np.save(f"models/shooting_rewards_run{run_id}.npy", shooting_rewards)
@@ -138,9 +150,9 @@ def train_agent(run_id, episodes=10000, max_steps=1000, lr=0.001):
     return best_avg_reward, f"models/best_model_run{run_id}.pth", all_rewards
 
 
-# ============================================================
-# Main: run multiple training sessions for evaluation
-# ============================================================
+# -----------------------------
+# Main: Multiple Training Runs
+# -----------------------------
 if __name__ == "__main__":
     os.makedirs("models", exist_ok=True)
     results = []
@@ -167,10 +179,12 @@ if __name__ == "__main__":
     # --- Plot Average Reward Curve Across Runs ---
     plt.figure(figsize=(10, 5))
     plt.plot(mean_per_ep, label="Mean reward per episode")
-    plt.fill_between(range(len(mean_per_ep)),
-                     mean_per_ep - std_per_ep,
-                     mean_per_ep + std_per_ep,
-                     color="orange", alpha=0.3, label="±1 std dev")
+    plt.fill_between(
+        range(len(mean_per_ep)),
+        mean_per_ep - std_per_ep,
+        mean_per_ep + std_per_ep,
+        color="orange", alpha=0.3, label="±1 std dev"
+    )
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.title("Average Reward Across 10 Runs")
