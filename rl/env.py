@@ -7,14 +7,27 @@ from game.asteroid import Asteroid
 from game.bullet import Bullet
 from game.config import *
 
+# -----------------------------
+# Asteroids Gym Environment
+# -----------------------------
 class AsteroidsEnv(gym.Env):
     """Custom Gym environment for the Asteroids game."""
+
+    # -----------------------------
+    # Initialisation
+    # -----------------------------
     def __init__(self, render_mode=False, reward_per_hit=50.0):
+        """
+        Args:
+            render_mode (bool): If True, render with pygame.
+            reward_per_hit (float): Reward added per asteroid hit.
+        """
         self.render_mode = render_mode
-        self.action_history = []
-        self.history_window = 30
-        self.episode_number = 0  # 🔧 Track episodes for curriculum
-        self.reward_per_hit = reward_per_hit  # 🔧 Make asteroid reward tunable
+        self.action_history = []       # Recent actions for repetition detection
+        self.history_window = 30       # Window size for action repetition metric
+        self.episode_number = 0        # Track episodes for curriculum
+        self.reward_per_hit = reward_per_hit  # Make asteroid reward tunable
+
         if render_mode:
             pygame.init()
             self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -23,19 +36,31 @@ class AsteroidsEnv(gym.Env):
 
         self.reset()
 
+    # -----------------------------
+    # Reset Episode
+    # -----------------------------
     def reset(self):
+        """
+        Reset the environment to start a new episode.
+
+        Returns:
+            np.ndarray: Initial observation/state.
+        """
         self.episode_number += 1
 
         # --- Curriculum: gradually increase number of asteroids ---
-        max_episodes = 20000 # Total episodes for curriculum
-        min_asteroids = 6 # Minimum number of asteroids
-        max_asteroids = 18 # Maximum number of asteroids
+        max_episodes = 20000  # Total episodes for curriculum
+        min_asteroids = 6     # Minimum number of asteroids
+        max_asteroids = 18    # Maximum number of asteroids
         progress = min(1.0, self.episode_number / max_episodes)
         NUM_ASTEROIDS = int(min_asteroids + progress * (max_asteroids - min_asteroids))
 
+        # World entities
         self.ship = Ship(WIDTH // 2, HEIGHT // 2)
         self.asteroids = [Asteroid(size=random.choice(["large", "medium", "small"])) for _ in range(NUM_ASTEROIDS)]
         self.bullets = []
+
+        # Episode stats/flags
         self.score = 0
         self.done = False
         self.frame_count = 0
@@ -48,11 +73,26 @@ class AsteroidsEnv(gym.Env):
 
         return self._get_state()
 
+    # -----------------------------
+    # Step Transition
+    # -----------------------------
     def step(self, action):
+        """
+        Advance the environment by one step.
+
+        Args:
+            action (int): Discrete action index.
+                0 = no-op, 1 = thrust up, 2 = thrust down,
+                3 = thrust left, 4 = thrust right, 5 = shoot
+
+        Returns:
+            tuple: (state, reward, done, info)
+        """
         if self.done:
             return self._get_state(), 0, True, {}
 
         def safe_normalize(v):
+            """Return v.normalized() if length > 0, else zero vector."""
             return v.normalize() if v.length() > 0 else pygame.math.Vector2(0, 0)
 
         # --- Action Mapping ---
@@ -69,13 +109,15 @@ class AsteroidsEnv(gym.Env):
         elif action == 5:
             shoot = True
 
+        # Apply thrust to ship
         self.ship.apply_thrust(thrust)
 
+        # Track recent actions for repetition penalty
         self.action_history.append(action)
         if len(self.action_history) > self.history_window:
             self.action_history.pop(0)
 
-        # --- Call reward logic ---
+        # --- Reward logic (includes shooting, hits, penalties, alignment) ---
         reward, alignment_reward, shooting_reward = self._reward(shoot, safe_normalize)
 
         # --- Game State Update ---
@@ -83,11 +125,14 @@ class AsteroidsEnv(gym.Env):
         for a in self.asteroids:
             a.update()
 
+        # Update score
         self.score += reward
 
+        # Render if requested
         if self.render_mode:
             self._render()
 
+        # Info dict for diagnostics/analytics
         return self._get_state(), reward, self.done, {
             "bullets_fired": self.bullets_fired,
             "hits_landed": self.hits_landed,
@@ -97,8 +142,30 @@ class AsteroidsEnv(gym.Env):
             "shooting_reward": shooting_reward
         }
 
+    # -----------------------------
+    # Reward Function
+    # -----------------------------
     def _reward(self, shoot, safe_normalize):
-        """Handles all reward and penalty logic."""
+        """
+        Compute reward and penalties for the current step.
+
+        Includes:
+        - Shooting and hit rewards
+        - Idle vs movement incentives
+        - Edge penalties and termination on prolonged edge-hovering
+        - Center-distance penalty
+        - Missed shot penalty if an asteroid is ahead
+        - Alignment reward with closest asteroid
+        - Small periodic survival bonus
+        - Repetition penalty for action loops
+
+        Args:
+            shoot (bool): Whether the agent chose to shoot this step.
+            safe_normalize (callable): Function to safely normalise a Vector2.
+
+        Returns:
+            tuple: (reward, alignment_reward, shooting_reward)
+        """
         reward = 0
         alignment_reward = 0
         shooting_reward = 0
@@ -134,8 +201,12 @@ class AsteroidsEnv(gym.Env):
                     break
 
         # --- Ship-asteroid collision (death) ---
-        ship_rect = pygame.Rect(self.ship.pos.x - SHIP_RADIUS, self.ship.pos.y - SHIP_RADIUS,
-                                SHIP_RADIUS * 2, SHIP_RADIUS * 2)
+        ship_rect = pygame.Rect(
+            self.ship.pos.x - SHIP_RADIUS,
+            self.ship.pos.y - SHIP_RADIUS,
+            SHIP_RADIUS * 2,
+            SHIP_RADIUS * 2
+        )
         for a in self.asteroids:
             if ship_rect.colliderect(a.get_rect()):
                 reward = -10.0
@@ -147,20 +218,23 @@ class AsteroidsEnv(gym.Env):
         norm_x = self.ship.pos.x / WIDTH
         norm_y = self.ship.pos.y / HEIGHT
         edge_margin = 0.1
-        near_edge = norm_x < edge_margin or norm_x > 1 - edge_margin or \
-                    norm_y < edge_margin or norm_y > 1 - edge_margin
+        near_edge = (
+            norm_x < edge_margin or norm_x > 1 - edge_margin or
+            norm_y < edge_margin or norm_y > 1 - edge_margin
+        )
         if near_edge:
             reward -= 0.05
             self.edge_counter += 1
         else:
             self.edge_counter = 0
 
+        # Terminate if lingering near edge for too long
         if self.edge_counter > 120:
             reward -= 0.2
             self.done = True
             return reward, alignment_reward, shooting_reward
 
-        # --- Center distance penalty ---
+        # --- Center distance penalty (Manhattan distance from screen center) ---
         center_dist = abs(norm_x - 0.5) + abs(norm_y - 0.5)
         reward -= 0.1 * center_dist
 
@@ -186,6 +260,7 @@ class AsteroidsEnv(gym.Env):
                 alignment_reward = 0.2
             reward += alignment_reward
 
+        # --- Small periodic survival bonus ---
         self.step_counter += 1
         if self.step_counter % 20 == 0:
             reward += 0.02
@@ -200,33 +275,59 @@ class AsteroidsEnv(gym.Env):
 
         return reward, alignment_reward, shooting_reward
 
+    # -----------------------------
+    # Observation Builder
+    # -----------------------------
     def _get_state(self):
+        """
+        Construct the observation vector:
+        - Ship position (normalised)
+        - Ship velocity (scaled)
+        - Up to 3 closest asteroids: position (normalised) and size index (scaled radius)
+        - Zero-padding to fixed size if fewer than 3 asteroids are present
+        """
         state = [
             self.ship.pos.x / WIDTH,
             self.ship.pos.y / HEIGHT,
             self.ship.vel.x / 10,
             self.ship.vel.y / 10
         ]
+
+        # Include the three nearest asteroids
         asteroids = sorted(self.asteroids, key=lambda a: self.ship.pos.distance_to(a.pos))[:3]
         for a in asteroids:
             state += [
                 a.pos.x / WIDTH,
                 a.pos.y / HEIGHT,
-                ASTEROID_SIZES[a.size]["radius"] / 40
+                ASTEROID_SIZES[a.size]["radius"] / 40  # Normalise by max radius in config
             ]
+
+        # Pad to constant length (4 + 3*3)
         while len(state) < 4 + 3 * 3:
             state += [0, 0, 0]
+
         return np.array(state, dtype=np.float32)
 
+    # -----------------------------
+    # Rendering
+    # -----------------------------
     def _render(self):
+        """
+        Render the current game frame using pygame.
+        """
         self.clock.tick(FPS)
         self.screen.fill((0, 0, 0))
+
+        # Draw entities
         self.ship.draw(self.screen)
         for a in self.asteroids:
             a.draw(self.screen)
         for b in self.bullets:
             b.draw(self.screen)
+
+        # HUD: score
         font = pygame.font.SysFont(None, 28)
         score_text = font.render(f"Score: {int(self.score)}", True, (255, 255, 255))
         self.screen.blit(score_text, (10, 10))
+
         pygame.display.flip()
