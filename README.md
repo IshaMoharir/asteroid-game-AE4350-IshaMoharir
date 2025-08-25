@@ -44,7 +44,7 @@ asteroid-game-AE4350/
 ├── dqn_asteroids.pth          # Another saved checkpoint
 ├── training_curve.png         # Training curve example (root copy)
 │
-├── main.py                    # Entry point (can be used to run/organise)
+├── main.py                    # Playing the game yourself
 ├── run_rl.py                  # Run trained agent visually in pygame
 ├── sensitivity.py             # Random search for reward/lr configs
 ├── sensitivity_v2.py          # LR sweep + reward sensitivity (tornado plots)
